@@ -12,6 +12,7 @@ import json
 import time
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from . import data, metrics, models
@@ -58,7 +59,18 @@ def fit(args: argparse.Namespace) -> None:
 
 def evaluate(args: argparse.Namespace) -> None:
     train = _read(TRAIN_PATH)
-    rows = {"Real-B (実データ同士)": metrics.evaluate(train, _read(HOLDOUT_PATH))}
+    holdout = _read(HOLDOUT_PATH)
+    rng = np.random.default_rng(args.seed)
+    rows = {
+        "Real-B (実データ同士)": metrics.evaluate(train, holdout),
+        # 指標の目安: B の一部の列だけを行間でシャッフルし、系列としての情報を壊したもの
+        "Real-B tcode シャッフル": metrics.evaluate(
+            train, holdout.assign(tcode=rng.permutation(holdout["tcode"].to_numpy()))
+        ),
+        "Real-B 日付シャッフル": metrics.evaluate(
+            train, holdout.assign(datetime=rng.permutation(holdout["datetime"].to_numpy()))
+        ),
+    }
     stats = {"Real-A (学習データ)": metrics.summary_stats(train)}
     for name in models.MODELS:
         path = OUT / f"gen_{name}.csv.gz"

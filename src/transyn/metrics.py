@@ -9,7 +9,9 @@
 - (Tcode, DoM): tcode と月内日の同時分布の JSD
 
 JSD は著者コードに合わせて自然対数で計算する（scipy.special.rel_entr）。
-追加で、取引間隔（日数）の Wasserstein-1 距離も出す（著者コードの nb2 で td-wasser として集計されているもの）。
+追加で、系列としての時間構造を直接見る指標を 2 つ出す（論文 Table 2 にはない）。
+- TD: 系列内の取引間隔（日数）の Wasserstein-1 距離（著者コードの nb2 で td-wasser として集計されているもの）
+- TxPerMonth: 系列×月ごとの取引件数の Wasserstein-1 距離。CF は月内の取引件数に強く依存するので、その解釈に使う
 """
 
 from __future__ import annotations
@@ -41,6 +43,10 @@ def monthly_cash_flow(df: pd.DataFrame) -> pd.Series:
     return d.groupby(["seq_id", "ym"])["signed"].sum()
 
 
+def tx_per_month(df: pd.DataFrame) -> pd.Series:
+    return df.groupby(["seq_id", df["datetime"].dt.to_period("M")]).size()
+
+
 def tcode_ngrams(df: pd.DataFrame, n: int) -> pd.Series:
     d = _ordered(df)
     codes = d["tcode"].to_numpy()
@@ -70,6 +76,7 @@ def evaluate(real: pd.DataFrame, gen: pd.DataFrame) -> dict[str, float]:
             (gen["tcode"] + "@" + day_g.astype(str)).value_counts(),
         ),
         "TD": wasserstein_distance(inter_arrival_days(real), inter_arrival_days(gen)),
+        "TxPerMonth": wasserstein_distance(tx_per_month(real), tx_per_month(gen)),
     }
 
 

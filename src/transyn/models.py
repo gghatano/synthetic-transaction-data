@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import time
+from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -27,11 +28,17 @@ def _ns_datetime(df: pd.DataFrame) -> pd.DataFrame:
     return df.assign(datetime=df["datetime"].astype("datetime64[ns]"))
 
 
-def fit_generate_ctgan(train: pd.DataFrame, n_seqs: int, epochs: int, seed: int) -> pd.DataFrame:
+def fit_generate_ctgan(
+    train: pd.DataFrame, n_seqs: int, epochs: int, seed: int, log_frequency: bool = False
+) -> pd.DataFrame:
     """CTGAN を「1行 = 1取引」でそのまま適用する素朴な使い方。
 
     CTGAN には系列や口座の概念がないので、生成した行を MAX_SEQ_LEN 件ずつランダムに束ねて
     1 系列とみなし、系列内を日付順に並べる。行間の依存は学習も生成もされない。
+
+    log_frequency は SDV の既定では True。ctgan の DataSampler.sample_original_condvec は
+    「元の頻度で条件ベクトルを引く」としながら、実際には log 頻度で正規化した確率を使うため、
+    True のままだと生成時のカテゴリ分布が一様分布側に平らになる（ctgan 0.12.1 で確認）。
     """
     from sdv.metadata import Metadata
     from sdv.single_table import CTGANSynthesizer
@@ -41,7 +48,9 @@ def fit_generate_ctgan(train: pd.DataFrame, n_seqs: int, epochs: int, seed: int)
     metadata = Metadata.detect_from_dataframe(rows)
     metadata.update_column("tcode", sdtype="categorical")
     metadata.update_column("datetime", sdtype="datetime")
-    model = CTGANSynthesizer(metadata, epochs=epochs, verbose=True, enforce_rounding=False)
+    model = CTGANSynthesizer(
+        metadata, epochs=epochs, verbose=True, enforce_rounding=False, log_frequency=log_frequency
+    )
     model.fit(rows)
     gen = model.sample(num_rows=n_seqs * MAX_SEQ_LEN)
     gen["seq_id"] = np.random.permutation(len(gen)) // MAX_SEQ_LEN
@@ -159,6 +168,7 @@ def _from_dgan_frame(gen: pd.DataFrame, bounds: pd.DataFrame | None = None) -> p
 
 MODELS = {
     "ctgan": fit_generate_ctgan,
+    "ctgan-logfreq": partial(fit_generate_ctgan, log_frequency=True),
     "par": fit_generate_par,
     "dgan": fit_generate_dgan,
 }
