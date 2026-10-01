@@ -1,0 +1,19 @@
+[project]
+name = "banksformer-runner"
+version = "0.1.0"
+description = "Banksformer 著者コード（ECML PKDD 2022）を実行するための環境。著者コード自体は含まない"
+requires-python = ">=3.10,<3.11"
+dependencies = [
+    "tensorflow-cpu==2.15.*",
+    "numpy<2",
+    "pandas<2",
+    "scikit-learn",
+    "matplotlib",
+    "seaborn",
+    "nbclient",
+    "nbformat",
+    "ipykernel",
+]
+
+[tool.uv]
+package = false

@@ -18,6 +18,8 @@ import pandas as pd
 from . import data, metrics, models
 
 OUT = Path("outputs")
+# transyn の外で生成されたデータ（external/ の各 runner が outputs/ に gen_<name>_s<seed>.csv.gz を置く）
+EXTERNAL_MODELS = ["banksformer"]
 TRAIN_PATH = data.DATA_DIR / "train_A.csv.gz"
 HOLDOUT_PATH = data.DATA_DIR / "holdout_B.csv.gz"
 
@@ -73,7 +75,7 @@ def evaluate(args: argparse.Namespace) -> None:
     }
     stats = {"Real-A (学習データ)": metrics.summary_stats(train)}
     per_seed = []
-    for name in models.MODELS:
+    for name in [*models.MODELS, *EXTERNAL_MODELS]:
         for path in sorted(OUT.glob(f"gen_{name}_s*.csv.gz")):
             seed = int(path.name.removesuffix(".csv.gz").rsplit("_s", 1)[1])
             gen = _read(path)
