@@ -24,4 +24,6 @@ uv run transyn fit par --epochs 50
 uv run transyn evaluate                   # 指標 → outputs/results.md
 ```
 
+`uv run transyn --seed 1 fit dgan --epochs 400` のように `--seed` を付けると `outputs/gen_<model>_s<seed>.csv.gz` に保存され、`evaluate` がシード平均と標準偏差を出す。
+
 `data/` と `outputs/` は git 管理外。CPU 12 コアでの所要時間の目安は DGAN 5 分、CTGAN 12〜20 分、PAR 60 分。
