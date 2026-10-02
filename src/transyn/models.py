@@ -77,7 +77,7 @@ def fit_generate_par(train: pd.DataFrame, n_seqs: int, epochs: int, seed: int) -
     return gen.sort_values(["seq_id", "datetime"], kind="stable").reset_index(drop=True)
 
 
-def _to_dgan_frame(train: pd.DataFrame) -> pd.DataFrame:
+def _to_dgan_frame(train: pd.DataFrame, log_td: bool = True) -> pd.DataFrame:
     """DGAN 用の long 形式。時刻は「系列の開始日（属性）＋取引間隔（特徴量）」で表す（論文 2 節と同じ）。
 
     取引間隔は 0 日が 2 割強を占め、最大 90 日と裾が長い。そのまま学習させると gretel 版 DGAN は
@@ -95,25 +95,39 @@ def _to_dgan_frame(train: pd.DataFrame) -> pd.DataFrame:
             "start_day": (start - EPOCH_ORIGIN).dt.days.astype(float).to_numpy(),
             "tcode": full["tcode"].to_numpy(),
             "log_amount": np.log1p(full["amount"]).to_numpy(),
-            "log_td": np.log1p(td).to_numpy(),
+            "log_td": (np.log1p(td) if log_td else td).to_numpy(),
         }
     )
 
 
-def fit_generate_dgan(train: pd.DataFrame, n_seqs: int, epochs: int, seed: int) -> pd.DataFrame:
+def fit_generate_dgan(
+    train: pd.DataFrame,
+    n_seqs: int,
+    epochs: int,
+    seed: int,
+    log_td: bool = True,
+    start: str = "attribute",
+    sample_len: int = 10,
+) -> pd.DataFrame:
     """DoppelGANger（gretel-synthetics の PyTorch 実装）。
 
     論文の DG は元の TensorFlow 実装で、可変長の系列を生成している。gretel 版は固定長しか扱えないので、
     ちょうど MAX_SEQ_LEN 件の系列だけで学習・生成する（論文との差分）。
+
+    - log_td: 取引間隔を log1p で圧縮して渡すか（False だと取引間隔が 0 に潰れやすい。#2 付録 A）
+    - start: 系列の開始日の与え方。"attribute" は DGAN に属性として生成させる。"empirical" は属性から外し、
+      生成後に学習データの開始日から復元抽出する（論文の BF・TG と同じ扱い）
+    - sample_len: 1 ステップの RNN 出力で生成する取引数（DoppelGANger の batch generation）
     """
     from gretel_synthetics.timeseries_dgan.config import DfStyle, DGANConfig
     from gretel_synthetics.timeseries_dgan.dgan import DGAN
 
     _seed(seed)
-    frame = _to_dgan_frame(train)
+    frame = _to_dgan_frame(train, log_td=log_td)
+    attributes = ["age", "start_day"] if start == "attribute" else ["age"]
     config = DGANConfig(
         max_sequence_len=MAX_SEQ_LEN,
-        sample_len=10,
+        sample_len=sample_len,
         batch_size=min(1000, frame["seq_id"].nunique()),
         epochs=epochs,
         cuda=False,
@@ -126,8 +140,8 @@ def fit_generate_dgan(train: pd.DataFrame, n_seqs: int, epochs: int, seed: int) 
             print(f"epoch {info.epoch}/{info.total_epochs} ({time.time() - started:.0f}s)", flush=True)
 
     model.train_dataframe(
-        frame,
-        attribute_columns=["age", "start_day"],
+        frame.drop(columns=[c for c in ["start_day"] if c not in attributes]),
+        attribute_columns=attributes,
         feature_columns=["tcode", "log_amount", "log_td"],
         example_id_column="seq_id",
         time_column="t",
@@ -136,6 +150,13 @@ def fit_generate_dgan(train: pd.DataFrame, n_seqs: int, epochs: int, seed: int) 
         progress_callback=progress,
     )
     gen = model.generate_dataframe(n_seqs)
+    if start == "empirical":
+        starts = frame.groupby("seq_id")["start_day"].first().to_numpy()
+        sampled = np.random.choice(starts, size=gen["seq_id"].nunique())
+        gen["start_day"] = gen["seq_id"].map(dict(zip(gen["seq_id"].unique(), sampled)))
+    if not log_td:
+        gen["log_td"] = np.log1p(gen["log_td"].astype(float).clip(lower=0))
+        frame = frame.assign(log_td=np.log1p(frame["log_td"]))
     return _from_dgan_frame(gen, bounds=frame)
 
 
@@ -171,4 +192,8 @@ MODELS = {
     "ctgan-logfreq": partial(fit_generate_ctgan, log_frequency=True),
     "par": fit_generate_par,
     "dgan": fit_generate_dgan,
+    # #5 の切り分け用
+    "dgan-rawtd": partial(fit_generate_dgan, log_td=False),
+    "dgan-empstart": partial(fit_generate_dgan, start="empirical"),
+    "dgan-sl5": partial(fit_generate_dgan, sample_len=5),
 }
