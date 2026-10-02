@@ -5,6 +5,7 @@
 - 調査: [docs/survey-gan-transaction-synthesis.md](docs/survey-gan-transaction-synthesis.md)（issue #1）
 - 追試: [docs/replication-banksformer.md](docs/replication-banksformer.md)（issue #2, #4）
 - DGAN の切り分け: [docs/dgan-ablation.md](docs/dgan-ablation.md)（issue #5）
+- Banksformer 本体の再学習: [docs/banksformer-rerun.md](docs/banksformer-rerun.md)（issue #6）。実行環境は [external/banksformer/](external/banksformer/run.py)
 
 ## セットアップ
 
