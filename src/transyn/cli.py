@@ -1,8 +1,8 @@
 """追試の実行コマンド。
 
     uv run transyn prepare                         # データ取得・前処理・口座単位の分割
-    uv run transyn fit ctgan --epochs 50           # 学習と生成（outputs/gen_ctgan.csv.gz）
-    uv run transyn evaluate                        # 指標計算（outputs/results.csv / results.md）
+    uv run transyn --seed 1 fit ctgan --epochs 50  # 学習と生成（outputs/gen_ctgan_s1.csv.gz）
+    uv run transyn evaluate                        # 指標計算（outputs/results.md ほか）
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def fit(args: argparse.Namespace) -> None:
     started = time.time()
     gen = models.MODELS[args.model](train, n_seqs=args.n_seqs, epochs=args.epochs, seed=args.seed)
     elapsed = time.time() - started
-    gen[data.SEQ_COLUMNS].to_csv(OUT / f"gen_{args.model}.csv.gz", index=False)
+    gen[data.SEQ_COLUMNS].to_csv(OUT / f"gen_{args.model}_s{args.seed}.csv.gz", index=False)
     run = {
         "model": args.model,
         "epochs": args.epochs,
@@ -53,7 +53,7 @@ def fit(args: argparse.Namespace) -> None:
         "seed": args.seed,
         "seconds": round(elapsed),
     }
-    (OUT / f"run_{args.model}.json").write_text(json.dumps(run, ensure_ascii=False, indent=2))
+    (OUT / f"run_{args.model}_s{args.seed}.json").write_text(json.dumps(run, ensure_ascii=False, indent=2))
     print(json.dumps(run))
 
 
@@ -72,12 +72,19 @@ def evaluate(args: argparse.Namespace) -> None:
         ),
     }
     stats = {"Real-A (学習データ)": metrics.summary_stats(train)}
+    per_seed = []
     for name in models.MODELS:
-        path = OUT / f"gen_{name}.csv.gz"
-        if path.exists():
+        for path in sorted(OUT.glob(f"gen_{name}_s*.csv.gz")):
+            seed = int(path.name.removesuffix(".csv.gz").rsplit("_s", 1)[1])
             gen = _read(path)
-            rows[name] = metrics.evaluate(train, gen)
-            stats[name] = metrics.summary_stats(gen)
+            per_seed.append({"model": name, "seed": seed, **metrics.evaluate(train, gen)})
+            stats[f"{name} (s{seed})"] = metrics.summary_stats(gen)
+
+    by_seed = pd.DataFrame(per_seed)
+    grouped = by_seed.drop(columns="seed").groupby("model", sort=False)
+    mean, std, n = grouped.mean(), grouped.std(), grouped.size()
+    for name in mean.index:
+        rows[f"{name} (n={n[name]})"] = mean.loc[name].to_dict()
     for name, vals in metrics.PAPER_TABLE2_CZECH.items():
         rows[f"論文 {name}"] = vals
 
@@ -85,8 +92,11 @@ def evaluate(args: argparse.Namespace) -> None:
     stat_table = pd.DataFrame(stats).T
     OUT.mkdir(exist_ok=True)
     table.to_csv(OUT / "results.csv")
+    by_seed.to_csv(OUT / "results_by_seed.csv", index=False)
+    std.to_csv(OUT / "results_std.csv")
     stat_table.to_csv(OUT / "summary_stats.csv")
-    md = "## 指標（実データ A との比較）\n\n" + table.to_markdown(floatfmt=".3f")
+    md = "## 指標（実データ A との比較。生成モデルはシード平均）\n\n" + table.to_markdown(floatfmt=".3f")
+    md += "\n\n## シード間の標準偏差\n\n" + std.to_markdown(floatfmt=".3f")
     md += "\n\n## 生成データの基本統計\n\n" + stat_table.to_markdown(floatfmt=".3f") + "\n"
     (OUT / "results.md").write_text(md)
     print(md)
