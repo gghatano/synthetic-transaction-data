@@ -116,7 +116,7 @@ def main() -> None:
     p.add_argument("--epochs", type=int, required=True)
     p.add_argument("--n-seqs", type=int, default=5000, help="生成する系列数（論文は 5000）")
     p.add_argument("--n-train-seqs", type=int, default=None, help="学習に使う系列数（省略時は全件）")
-    p.add_argument("--tag", default="", help="出力名に付ける接尾辞（例: -e1000 → gen_dgan-e1000_s0.csv.gz）")
+    p.add_argument("--tag", default="", help="出力名に付ける接尾辞（例: --tag=-e1000 → gen_dgan-e1000_s0.csv.gz）")
     p.set_defaults(func=fit)
 
     p = sub.add_parser("evaluate")
