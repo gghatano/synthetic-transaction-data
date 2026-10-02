@@ -3,7 +3,8 @@
 トランザクションデータ合成手法の調査と追試。
 
 - 調査: [docs/survey-gan-transaction-synthesis.md](docs/survey-gan-transaction-synthesis.md)（issue #1）
-- 追試: [docs/replication-banksformer.md](docs/replication-banksformer.md)（issue #2）
+- 追試: [docs/replication-banksformer.md](docs/replication-banksformer.md)（issue #2, #4）
+- DGAN の切り分け: [docs/dgan-ablation.md](docs/dgan-ablation.md)（issue #5）
 
 ## セットアップ
 

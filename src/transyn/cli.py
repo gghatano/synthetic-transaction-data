@@ -44,16 +44,17 @@ def fit(args: argparse.Namespace) -> None:
     started = time.time()
     gen = models.MODELS[args.model](train, n_seqs=args.n_seqs, epochs=args.epochs, seed=args.seed)
     elapsed = time.time() - started
-    gen[data.SEQ_COLUMNS].to_csv(OUT / f"gen_{args.model}_s{args.seed}.csv.gz", index=False)
+    name = args.model + args.tag
+    gen[data.SEQ_COLUMNS].to_csv(OUT / f"gen_{name}_s{args.seed}.csv.gz", index=False)
     run = {
-        "model": args.model,
+        "model": name,
         "epochs": args.epochs,
         "n_train_seqs": int(train["seq_id"].nunique()),
         "n_gen_seqs": args.n_seqs,
         "seed": args.seed,
         "seconds": round(elapsed),
     }
-    (OUT / f"run_{args.model}_s{args.seed}.json").write_text(json.dumps(run, ensure_ascii=False, indent=2))
+    (OUT / f"run_{name}_s{args.seed}.json").write_text(json.dumps(run, ensure_ascii=False, indent=2))
     print(json.dumps(run))
 
 
@@ -73,12 +74,12 @@ def evaluate(args: argparse.Namespace) -> None:
     }
     stats = {"Real-A (学習データ)": metrics.summary_stats(train)}
     per_seed = []
-    for name in models.MODELS:
-        for path in sorted(OUT.glob(f"gen_{name}_s*.csv.gz")):
-            seed = int(path.name.removesuffix(".csv.gz").rsplit("_s", 1)[1])
-            gen = _read(path)
-            per_seed.append({"model": name, "seed": seed, **metrics.evaluate(train, gen)})
-            stats[f"{name} (s{seed})"] = metrics.summary_stats(gen)
+    # outputs/ にある生成結果をすべて評価する（transyn 外で生成したものや --tag 付きの実行も含む）
+    for path in sorted(OUT.glob("gen_*_s*.csv.gz")):
+        name, seed = path.name.removeprefix("gen_").removesuffix(".csv.gz").rsplit("_s", 1)
+        gen = _read(path)
+        per_seed.append({"model": name, "seed": int(seed), **metrics.evaluate(train, gen)})
+        stats[f"{name} (s{seed})"] = metrics.summary_stats(gen)
 
     by_seed = pd.DataFrame(per_seed)
     grouped = by_seed.drop(columns="seed").groupby("model", sort=False)
@@ -115,6 +116,7 @@ def main() -> None:
     p.add_argument("--epochs", type=int, required=True)
     p.add_argument("--n-seqs", type=int, default=5000, help="生成する系列数（論文は 5000）")
     p.add_argument("--n-train-seqs", type=int, default=None, help="学習に使う系列数（省略時は全件）")
+    p.add_argument("--tag", default="", help="出力名に付ける接尾辞（例: --tag=-e1000 → gen_dgan-e1000_s0.csv.gz）")
     p.set_defaults(func=fit)
 
     p = sub.add_parser("evaluate")
