@@ -21,7 +21,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import data, ehr, metrics, models
+from . import data, ehr, metrics, models, seqgpt
+
+# EHR では数値列のない系列向けの GPT 型モデルも使える
+EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
 
 OUT = Path("outputs")
 TRAIN_PATH = data.DATA_DIR / "train_A.csv.gz"
@@ -124,7 +127,7 @@ def ehr_fit(args: argparse.Namespace) -> None:
     train = ehr.read_split("A")
     n_seqs = args.n_seqs or train["seq_id"].nunique()
     started = time.time()
-    gen = models.MODELS[args.model](train, n_seqs=n_seqs, epochs=args.epochs, seed=args.seed, spec=ehr.SPEC)
+    gen = EHR_MODELS[args.model](train, n_seqs=n_seqs, epochs=args.epochs, seed=args.seed, spec=ehr.SPEC)
     name = args.model + args.tag
     gen[ehr.SPEC.columns].to_csv(ehr.OUT / f"gen_{name}_s{args.seed}.csv.gz", index=False)
     run = {"model": name, "epochs": args.epochs, "n_gen_seqs": n_seqs, "seed": args.seed, "seconds": round(time.time() - started)}
@@ -168,7 +171,7 @@ def main() -> None:
     p.set_defaults(func=ehr_prepare)
 
     p = sub.add_parser("ehr-fit")
-    p.add_argument("model", choices=list(models.MODELS))
+    p.add_argument("model", choices=list(EHR_MODELS))
     p.add_argument("--epochs", type=int, required=True)
     p.add_argument("--n-seqs", type=int, default=None, help="生成する系列数（省略時は学習データと同数）")
     p.add_argument("--tag", default="", help="出力名に付ける接尾辞")
