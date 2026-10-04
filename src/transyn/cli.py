@@ -3,6 +3,12 @@
     uv run transyn prepare                         # データ取得・前処理・口座単位の分割
     uv run transyn --seed 1 fit ctgan --epochs 50  # 学習と生成（outputs/gen_ctgan_s1.csv.gz）
     uv run transyn evaluate                        # 指標計算（outputs/results.md ほか）
+
+EHR（eICU Demo, issue #10）:
+
+    uv run transyn ehr-prepare                     # data/eicu_demo/ の CSV からイベント系列を作り A/B/C に分割
+    uv run transyn --seed 0 ehr-fit par --epochs 50  # 学習と生成（outputs/ehr/gen_par_s0.csv.gz）
+    uv run transyn ehr-evaluate                    # 忠実度・有用性・プライバシ（outputs/ehr/results.md）
 """
 
 from __future__ import annotations
@@ -15,7 +21,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import data, metrics, models
+from . import data, ehr, metrics, models, seqgpt
+
+# EHR では数値列のない系列向けの GPT 型モデルも使える
+EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
 
 OUT = Path("outputs")
 TRAIN_PATH = data.DATA_DIR / "train_A.csv.gz"
@@ -103,6 +112,42 @@ def evaluate(args: argparse.Namespace) -> None:
     print(md)
 
 
+def ehr_prepare(args: argparse.Namespace) -> None:
+    parts = ehr.prepare(seed=args.seed)
+    for name, df in parts.items():
+        lengths = df.groupby("seq_id").size()
+        print(
+            f"{name}: {lengths.size} 滞在, {len(df)} イベント, 系列長の中央値 {lengths.median():.0f}, "
+            f"コード {df['tcode'].nunique()} 種類, 死亡退院 {df.groupby('seq_id')['died'].first().mean():.3f}"
+        )
+
+
+def ehr_fit(args: argparse.Namespace) -> None:
+    ehr.OUT.mkdir(parents=True, exist_ok=True)
+    train = ehr.read_split("A")
+    n_seqs = args.n_seqs or train["seq_id"].nunique()
+    started = time.time()
+    gen = EHR_MODELS[args.model](train, n_seqs=n_seqs, epochs=args.epochs, seed=args.seed, spec=ehr.SPEC)
+    name = args.model + args.tag
+    gen[ehr.SPEC.columns].to_csv(ehr.OUT / f"gen_{name}_s{args.seed}.csv.gz", index=False)
+    run = {"model": name, "epochs": args.epochs, "n_gen_seqs": n_seqs, "seed": args.seed, "seconds": round(time.time() - started)}
+    (ehr.OUT / f"run_{name}_s{args.seed}.json").write_text(json.dumps(run, ensure_ascii=False, indent=2))
+    print(json.dumps(run))
+
+
+def ehr_evaluate(args: argparse.Namespace) -> None:
+    table, by_seed = ehr.evaluate_all(seed=args.seed)
+    ehr.OUT.mkdir(parents=True, exist_ok=True)
+    table.to_csv(ehr.OUT / "results.csv")
+    by_seed.to_csv(ehr.OUT / "results_by_seed.csv", index=False)
+    md = "## eICU Demo: 忠実度・有用性・プライバシ（生成モデルはシード平均）\n\n" + table.to_markdown(floatfmt=".3f")
+    if len(by_seed):
+        std = by_seed.drop(columns="seed").groupby("model", sort=False).std()
+        md += "\n\n## シード間の標準偏差\n\n" + std.to_markdown(floatfmt=".3f")
+    (ehr.OUT / "results.md").write_text(md + "\n")
+    print(md)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="transyn")
     parser.add_argument("--seed", type=int, default=0)
@@ -121,6 +166,19 @@ def main() -> None:
 
     p = sub.add_parser("evaluate")
     p.set_defaults(func=evaluate)
+
+    p = sub.add_parser("ehr-prepare")
+    p.set_defaults(func=ehr_prepare)
+
+    p = sub.add_parser("ehr-fit")
+    p.add_argument("model", choices=list(EHR_MODELS))
+    p.add_argument("--epochs", type=int, required=True)
+    p.add_argument("--n-seqs", type=int, default=None, help="生成する系列数（省略時は学習データと同数）")
+    p.add_argument("--tag", default="", help="出力名に付ける接尾辞")
+    p.set_defaults(func=ehr_fit)
+
+    p = sub.add_parser("ehr-evaluate")
+    p.set_defaults(func=ehr_evaluate)
 
     args = parser.parse_args()
     args.func(args)
