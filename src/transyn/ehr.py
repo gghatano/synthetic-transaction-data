@@ -217,6 +217,8 @@ def privacy(train_df: pd.DataFrame, holdout_df: pd.DataFrame, gen: pd.DataFrame,
     - DCRRatio: DCR / HoldoutDCR。1 を大きく下回ると、合成データが学習データに未知の実データより近い（コピーの疑い）
     - MIA: 学習（A, メンバー）と B（非メンバー）の各滞在について、最も近い合成の滞在までの距離が近いほど
       メンバーと判定したときの AUC。0.5 が理想（見分けられない）
+    - ExactCopy: コードの並び（時刻は無視）が学習データのいずれかの滞在と完全に一致する合成の滞在の割合。
+      学習データの系列をそのまま吐き出していないかを直接見る
     """
     from sklearn.metrics import roc_auc_score
     from sklearn.neighbors import NearestNeighbors
@@ -239,7 +241,12 @@ def privacy(train_df: pd.DataFrame, holdout_df: pd.DataFrame, gen: pd.DataFrame,
     d_non = nn_g.kneighbors(zb)[0][:, 0]
     y = np.r_[np.ones(len(d_mem)), np.zeros(len(d_non))]
     mia = float(roc_auc_score(y, -np.r_[d_mem, d_non]))
-    return {"DCR": dcr, "HoldoutDCR": holdout_dcr, "DCRRatio": dcr / holdout_dcr, "MIA": mia}
+
+    def code_strings(df: pd.DataFrame) -> pd.Series:
+        return _ordered(df).groupby("seq_id")["tcode"].agg("|".join)
+
+    exact = float(code_strings(gen).isin(set(code_strings(train_df))).mean())
+    return {"DCR": dcr, "HoldoutDCR": holdout_dcr, "DCRRatio": dcr / holdout_dcr, "MIA": mia, "ExactCopy": exact}
 
 
 def evaluate_all(seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
