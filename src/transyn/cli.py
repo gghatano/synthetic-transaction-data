@@ -148,6 +148,12 @@ def ehr_evaluate(args: argparse.Namespace) -> None:
     print(md)
 
 
+def build_site(args: argparse.Namespace) -> None:
+    from . import site
+
+    site.build(args.out)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="transyn")
     parser.add_argument("--seed", type=int, default=0)
@@ -179,6 +185,10 @@ def main() -> None:
 
     p = sub.add_parser("ehr-evaluate")
     p.set_defaults(func=ehr_evaluate)
+
+    p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
+    p.add_argument("--out", type=Path, default=Path("_site"))
+    p.set_defaults(func=build_site)
 
     args = parser.parse_args()
     args.func(args)
