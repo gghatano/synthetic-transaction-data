@@ -173,6 +173,7 @@ def fit_generate_dgan(
     start: str = "attribute",
     sample_len: int = 10,
     spec: SeqSpec = CZECH,
+    batch_size: int = 1000,
 ) -> pd.DataFrame:
     """DoppelGANger（gretel-synthetics の PyTorch 実装）。
 
@@ -183,6 +184,8 @@ def fit_generate_dgan(
     - start: 系列の開始日の与え方。"attribute" は DGAN に属性として生成させる。"empirical" は属性から外し、
       生成後に学習データの開始日から復元抽出する（論文の BF・TG と同じ扱い）
     - sample_len: 1 ステップの RNN 出力で生成する取引数（DoppelGANger の batch generation）
+    - batch_size: 学習系列数より大きいと 1 エポック 1 回の更新になる。既定の 1000 は #2〜#10 の設定で、
+      更新回数が足りていなかった（#17）
     """
     from gretel_synthetics.timeseries_dgan.config import DfStyle, DGANConfig
     from gretel_synthetics.timeseries_dgan.dgan import DGAN
@@ -194,7 +197,7 @@ def fit_generate_dgan(
     config = DGANConfig(
         max_sequence_len=spec.seq_len,
         sample_len=sample_len,
-        batch_size=min(1000, frame["seq_id"].nunique()),
+        batch_size=min(batch_size, frame["seq_id"].nunique()),
         epochs=epochs,
         cuda=False,
     )
@@ -274,4 +277,8 @@ MODELS = {
     "dgan-rawtd": partial(fit_generate_dgan, log_td=False),
     "dgan-empstart": partial(fit_generate_dgan, start="empirical"),
     "dgan-sl5": partial(fit_generate_dgan, sample_len=5),
+    # #17: バッチ 64 で更新回数を増やしたもの
+    "dgan-b64": partial(fit_generate_dgan, batch_size=64),
+    "dgan-b64-rawtd": partial(fit_generate_dgan, batch_size=64, log_td=False),
+    "dgan-b64-empstart": partial(fit_generate_dgan, batch_size=64, start="empirical"),
 }

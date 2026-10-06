@@ -144,7 +144,7 @@ CFは時間構造の指標として解釈しにくい。日付シャッフルの
 - Banksformer本体の再学習 → #6で実施（[banksformer-rerun.md](banksformer-rerun.md)）
 - 複数シードでのばらつき評価 → #4で実施（本レポートの追記）
 - DGANの論文との差（3-gram, TcodeDoM）の切り分け → #5で実施（[dgan-ablation.md](dgan-ablation.md)）
-- DGANの更新回数: バッチ1,000で学習したため、400エポックで2,400回しか更新していない。ICUバイタルの検証（#15、[icu-vitals-verification.md](icu-vitals-verification.md)）では、更新回数を増やすと時間構造の再現が大きく改善した。本レポートのDGANの値は学習不足の可能性がある
+- DGANの更新回数: バッチ1,000で学習したため、400エポックで2,400回しか更新していない。ICUバイタルの検証（#15、[icu-vitals-verification.md](icu-vitals-verification.md)）では、更新回数を増やすと時間構造の再現が大きく改善した。本レポートのDGANの値は学習不足の可能性がある。#17でバッチ64で再実験すると、3-gramは0.096と論文のDGを上回った（[dgan-rerun.md](dgan-rerun.md)）
 
 ## 追記: シード間のばらつき（#4）
 
