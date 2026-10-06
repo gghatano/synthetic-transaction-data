@@ -14,6 +14,7 @@ ICU 入室から WINDOW_HOURS 時間の心拍数・SpO2・呼吸数を 5 分刻�
 from __future__ import annotations
 
 import time
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -120,15 +121,26 @@ def _finalize(gen: pd.DataFrame, bounds_from: pd.DataFrame) -> pd.DataFrame:
     return gen[["seq_id", "t", *VARS, "age", "died"]].sort_values(["seq_id", "t"]).reset_index(drop=True)
 
 
-def fit_generate_dgan(train: pd.DataFrame, n_seqs: int, epochs: int, seed: int, sample_len: int = 6) -> pd.DataFrame:
-    """DoppelGANger（gretel 版）。等間隔の固定長多変量時系列で、本来の対象に近い使い方。"""
+def fit_generate_dgan(
+    train: pd.DataFrame, n_seqs: int, epochs: int, seed: int, sample_len: int = 6, batch_size: int = 1000
+) -> pd.DataFrame:
+    """DoppelGANger（gretel 版）。等間隔の固定長多変量時系列で、本来の対象に近い使い方。
+
+    batch_size は学習系列数より大きいと 1 エポック 1 回の更新になる（716 系列なら既定の 1000 で 1 回）。
+    """
     from gretel_synthetics.timeseries_dgan.config import DfStyle, DGANConfig
     from gretel_synthetics.timeseries_dgan.dgan import DGAN
 
     _seed(seed)
     frame = train[["seq_id", "t", *VARS, "age", "died"]].assign(age=train["age"].astype(float))
     model = DGAN(
-        DGANConfig(max_sequence_len=STEPS, sample_len=sample_len, batch_size=min(1000, train["seq_id"].nunique()), epochs=epochs, cuda=False)
+        DGANConfig(
+            max_sequence_len=STEPS,
+            sample_len=sample_len,
+            batch_size=min(batch_size, train["seq_id"].nunique()),
+            epochs=epochs,
+            cuda=False,
+        )
     )
     started = time.time()
 
@@ -195,7 +207,44 @@ def fit_generate_ctgan(train: pd.DataFrame, n_seqs: int, epochs: int, seed: int)
     return _finalize(gen, train)
 
 
-MODELS = {"dgan": fit_generate_dgan, "par": fit_generate_par, "ctgan": fit_generate_ctgan}
+def fit_generate_var1(train: pd.DataFrame, n_seqs: int, epochs: int, seed: int) -> pd.DataFrame:
+    """比較用の単純な統計モデル（epochs は使わない）。
+
+    - 滞在ごとの性質（各変数の平均・log 標準偏差、年齢）を、死亡退院の有無ごとに多変量正規分布で表して引く
+    - 滞在内で標準化した変動を、変数間の VAR(1)（z_t = A z_{t-1} + e）で生成する
+    学習データの系列そのものは保持しない。
+    """
+    _seed(seed)
+    rng = np.random.default_rng(seed)
+    x = to_array(train)
+    static = static_of(train)
+    mean, std = x.mean(1), x.std(1) + 1e-6
+    z = (x - mean[:, None]) / std[:, None]
+    prev, cur = z[:, :-1].reshape(-1, len(VARS)), z[:, 1:].reshape(-1, len(VARS))
+    coef, *_ = np.linalg.lstsq(prev, cur, rcond=None)
+    noise_cov = np.cov((cur - prev @ coef).T)
+    stay = np.column_stack([mean, np.log(std), static["age"].to_numpy(float)])
+    died = static["died"].to_numpy()
+    rows = []
+    for i in range(n_seqs):
+        d = int(rng.random() < died.mean())
+        group = stay[died == d]
+        s = rng.multivariate_normal(group.mean(0), np.cov(group.T))
+        m, sd, age = s[: len(VARS)], np.exp(s[len(VARS) : 2 * len(VARS)]), s[-1]
+        zt = rng.multivariate_normal(np.zeros(len(VARS)), np.eye(len(VARS)))
+        for t in range(STEPS):
+            rows.append({"seq_id": i, "t": t, **dict(zip(VARS, m + sd * zt)), "age": age, "died": d})
+            zt = zt @ coef + rng.multivariate_normal(np.zeros(len(VARS)), noise_cov)
+    return _finalize(pd.DataFrame(rows), train)
+
+
+MODELS = {
+    "dgan": fit_generate_dgan,
+    "dgan-b64": partial(fit_generate_dgan, batch_size=64),
+    "par": fit_generate_par,
+    "ctgan": fit_generate_ctgan,
+    "var1": fit_generate_var1,
+}
 
 
 # ---------------------------------------------------------------- 評価
