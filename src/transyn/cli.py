@@ -9,6 +9,12 @@ EHR（eICU Demo, issue #10）:
     uv run transyn ehr-prepare                     # data/eicu_demo/ の CSV からイベント系列を作り A/B/C に分割
     uv run transyn --seed 0 ehr-fit par --epochs 50  # 学習と生成（outputs/ehr/gen_par_s0.csv.gz）
     uv run transyn ehr-evaluate                    # 忠実度・有用性・プライバシ（outputs/ehr/results.md）
+
+ICU のバイタル時系列（eICU Demo, issue #15）:
+
+    uv run transyn vitals-prepare
+    uv run transyn --seed 0 vitals-fit dgan --epochs 2000
+    uv run transyn vitals-evaluate                 # outputs/vitals/results.md
 """
 
 from __future__ import annotations
@@ -21,7 +27,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import data, ehr, metrics, models, seqgpt
+from . import data, ehr, metrics, models, seqgpt, vitals
 
 # EHR では数値列のない系列向けの GPT 型モデルも使える
 EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
@@ -148,6 +154,38 @@ def ehr_evaluate(args: argparse.Namespace) -> None:
     print(md)
 
 
+def vitals_prepare(args: argparse.Namespace) -> None:
+    for name, df in vitals.prepare(seed=args.seed).items():
+        s = vitals.static_of(df)
+        print(f"{name}: {len(s)} 滞在, 死亡退院 {s['died'].mean():.3f}")
+
+
+def vitals_fit(args: argparse.Namespace) -> None:
+    vitals.OUT.mkdir(parents=True, exist_ok=True)
+    train = vitals.read_split("A")
+    n_seqs = args.n_seqs or train["seq_id"].nunique()
+    started = time.time()
+    gen = vitals.MODELS[args.model](train, n_seqs=n_seqs, epochs=args.epochs, seed=args.seed)
+    name = args.model + args.tag
+    gen.to_csv(vitals.OUT / f"gen_{name}_s{args.seed}.csv.gz", index=False)
+    run = {"model": name, "epochs": args.epochs, "n_gen_seqs": n_seqs, "seed": args.seed, "seconds": round(time.time() - started)}
+    (vitals.OUT / f"run_{name}_s{args.seed}.json").write_text(json.dumps(run, ensure_ascii=False, indent=2))
+    print(json.dumps(run))
+
+
+def vitals_evaluate(args: argparse.Namespace) -> None:
+    table, by_seed = vitals.evaluate_all(seed=args.seed)
+    vitals.OUT.mkdir(parents=True, exist_ok=True)
+    table.to_csv(vitals.OUT / "results.csv")
+    by_seed.to_csv(vitals.OUT / "results_by_seed.csv", index=False)
+    md = "## eICU Demo のバイタル: 忠実度・有用性・プライバシ（生成モデルはシード平均）\n\n" + table.to_markdown(floatfmt=".3f")
+    if len(by_seed):
+        std = by_seed.drop(columns="seed").groupby("model", sort=False).std()
+        md += "\n\n## シード間の標準偏差\n\n" + std.to_markdown(floatfmt=".3f")
+    (vitals.OUT / "results.md").write_text(md + "\n")
+    print(md)
+
+
 def build_site(args: argparse.Namespace) -> None:
     from . import site
 
@@ -185,6 +223,19 @@ def main() -> None:
 
     p = sub.add_parser("ehr-evaluate")
     p.set_defaults(func=ehr_evaluate)
+
+    p = sub.add_parser("vitals-prepare")
+    p.set_defaults(func=vitals_prepare)
+
+    p = sub.add_parser("vitals-fit")
+    p.add_argument("model", choices=list(vitals.MODELS))
+    p.add_argument("--epochs", type=int, required=True)
+    p.add_argument("--n-seqs", type=int, default=None, help="生成する系列数（省略時は学習データと同数）")
+    p.add_argument("--tag", default="", help="出力名に付ける接尾辞")
+    p.set_defaults(func=vitals_fit)
+
+    p = sub.add_parser("vitals-evaluate")
+    p.set_defaults(func=vitals_evaluate)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
     p.add_argument("--out", type=Path, default=Path("_site"))
