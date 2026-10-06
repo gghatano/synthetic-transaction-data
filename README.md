@@ -1,6 +1,6 @@
 # synthetic-transaction-data
 
-トランザクションデータ・EHRイベント系列の合成手法の調査と検証。
+トランザクションデータ・EHRイベント系列・ICUバイタル時系列の合成手法の調査と検証。
 
 結果は https://gghatano.github.io/synthetic-transaction-data/ で読める。全体概要、レポートごとの詳細、日々の記録を分けて載せている。
 
@@ -12,6 +12,7 @@
 - Banksformer本体の再学習: [docs/banksformer-rerun.md](docs/banksformer-rerun.md)（issue #6）。実行環境は[external/banksformer/](external/banksformer/run.py)
 - EHRイベント系列の合成手法の調査: [docs/survey-ehr-synthesis.md](docs/survey-ehr-synthesis.md)（issue #10）
 - EHRイベント系列での検証（eICU Demo、データ共有目的）: [docs/ehr-verification.md](docs/ehr-verification.md)（issue #10）
+- ICUバイタル時系列での検証（eICU Demo）: [docs/icu-vitals-verification.md](docs/icu-vitals-verification.md)（issue #15）
 
 ## セットアップ
 
@@ -42,6 +43,14 @@ uv run transyn evaluate                         # 指標 → outputs/results.md
 uv run transyn ehr-prepare                      # イベント系列を作り、患者単位でA/B/Cに分割
 uv run transyn --seed 0 ehr-fit gpt --epochs 40 # 学習と生成 → outputs/ehr/gen_gpt_s0.csv.gz
 uv run transyn ehr-evaluate                     # 忠実度・有用性・プライバシ → outputs/ehr/results.md
+```
+
+ICUバイタルは同じeICU Demoから作る。
+
+```bash
+uv run transyn vitals-prepare                          # 心拍数・SpO2・呼吸数の12時間の系列を作り、A/B/Cに分割
+uv run transyn --seed 0 vitals-fit par --epochs 200    # 学習と生成 → outputs/vitals/gen_par_s0.csv.gz
+uv run transyn vitals-evaluate                         # → outputs/vitals/results.md
 ```
 
 `data/`と`outputs/`はgit管理外。
