@@ -14,6 +14,7 @@
 - EHRイベント系列での検証（eICU Demo、データ共有目的）: [docs/ehr-verification.md](docs/ehr-verification.md)（issue #10）
 - ICUバイタル時系列での検証（eICU Demo）: [docs/icu-vitals-verification.md](docs/icu-vitals-verification.md)（issue #15）
 - 数理モデルによるシミュレーションデータ生成の調査: [docs/survey-simulation.md](docs/survey-simulation.md)（issue #18）
+- DGANを適切な更新回数で再実験した結果: [docs/dgan-rerun.md](docs/dgan-rerun.md)（issue #17）
 
 ## セットアップ
 
