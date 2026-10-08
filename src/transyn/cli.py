@@ -173,7 +173,23 @@ def vitals_fit(args: argparse.Namespace) -> None:
     print(json.dumps(run))
 
 
+def vitals_pulse_noise(args: argparse.Namespace) -> None:
+    gen = pd.read_csv(vitals.OUT / f"gen_pulse_s{args.seed}.csv.gz")
+    out = vitals.add_observation_noise(gen, vitals.read_split("A"), seed=args.seed)
+    out.to_csv(vitals.OUT / f"gen_pulse-noise_s{args.seed}.csv.gz", index=False)
+    print(f"wrote gen_pulse-noise_s{args.seed}.csv.gz: {out['seq_id'].nunique()} 系列")
+
+
 def vitals_evaluate(args: argparse.Namespace) -> None:
+    if args.n:
+        table = vitals.evaluate_matched(args.n, args.draws, seed=args.seed)
+        name = f"results_n{args.n}"
+        table.to_csv(vitals.OUT / f"{name}.csv")
+        md = f"## eICU Demo のバイタル: 系列数を{args.n}にそろえた評価（{args.draws}回の平均。シード0の生成結果）\n\n"
+        md += table.to_markdown(floatfmt=".3f")
+        (vitals.OUT / f"{name}.md").write_text(md + "\n")
+        print(md)
+        return
     table, by_seed = vitals.evaluate_all(seed=args.seed)
     vitals.OUT.mkdir(parents=True, exist_ok=True)
     table.to_csv(vitals.OUT / "results.csv")
@@ -234,7 +250,12 @@ def main() -> None:
     p.add_argument("--tag", default="", help="出力名に付ける接尾辞")
     p.set_defaults(func=vitals_fit)
 
+    p = sub.add_parser("vitals-pulse-noise", help="Pulse の出力に実データの揺らぎを足した版を作る")
+    p.set_defaults(func=vitals_pulse_noise)
+
     p = sub.add_parser("vitals-evaluate")
+    p.add_argument("--n", type=int, default=None, help="系列数をそろえて評価する（例: 120）")
+    p.add_argument("--draws", type=int, default=20, help="--n のときの抜き出しの回数")
     p.set_defaults(func=vitals_evaluate)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")

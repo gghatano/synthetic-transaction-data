@@ -381,6 +381,68 @@ def _shuffle_stay(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
     return d.sort_values(["seq_id", "t"])
 
 
+def add_observation_noise(gen: pd.DataFrame, train: pd.DataFrame, seed: int = 0) -> pd.DataFrame:
+    """生成系列に、実データの滞在内の揺らぎを足す（#21: Pulse の出力はほぼ一定なので）。
+
+    学習データから、滞在内で標準化した変動の VAR(1)（fit_generate_var1 と同じ）と、滞在ごとの
+    標準偏差の分布（log をとった多変量正規分布）を推定する。生成系列ごとに標準偏差を引き、
+    VAR(1) で作った揺らぎにかけて足す。学習データの系列そのものは使わない。
+    """
+    rng = np.random.default_rng(seed)
+    x = to_array(train)
+    std = x.std(1) + 1e-6
+    z = (x - x.mean(1, keepdims=True)) / std[:, None]
+    prev, cur = z[:, :-1].reshape(-1, len(VARS)), z[:, 1:].reshape(-1, len(VARS))
+    coef, *_ = np.linalg.lstsq(prev, cur, rcond=None)
+    noise_cov = np.cov((cur - prev @ coef).T)
+    log_std = np.log(std)
+    out = gen.sort_values(["seq_id", "t"]).copy()
+    xg = to_array(out).copy()
+    for i in range(len(xg)):
+        sd = np.exp(rng.multivariate_normal(log_std.mean(0), np.cov(log_std.T)))
+        zt = rng.multivariate_normal(np.zeros(len(VARS)), np.eye(len(VARS)))
+        for t in range(STEPS):
+            xg[i, t] += sd * zt
+            zt = zt @ coef + rng.multivariate_normal(np.zeros(len(VARS)), noise_cov)
+    out[VARS] = xg.reshape(-1, len(VARS))
+    return _finalize(out, train)
+
+
+def _subsample(df: pd.DataFrame, n: int, rng: np.random.Generator) -> pd.DataFrame:
+    ids = df["seq_id"].unique()
+    if len(ids) <= n:
+        return df
+    return df[df["seq_id"].isin(rng.choice(ids, size=n, replace=False))]
+
+
+def evaluate_matched(n: int, draws: int, seed: int = 0) -> pd.DataFrame:
+    """系列数を n にそろえて評価する（#21: Pulse は計算に時間がかかり 120 人分しか作れないため）。
+
+    実データの基準と各生成結果から n 系列を無作為に抜き出し、draws 回の平均をとる。n 系列以下のものは全体を使う。
+    実データの基準（C とそのシャッフル、A のコピー）も同じ n に抜き出す。
+    """
+    a, b, c = (read_split(k) for k in "ABC")
+    rng = np.random.default_rng(seed)
+
+    def row(gen: pd.DataFrame) -> dict[str, float]:
+        return {**fidelity(a, gen, seed), "TSTR_AUROC": utility(gen, b, seed), **privacy(a, b, gen)}
+
+    sources = {
+        "Real-C（実データ・未学習）": lambda: _subsample(c, n, rng),
+        "Real-C 時刻シャッフル": lambda: _shuffle_time(_subsample(c, n, rng), rng),
+        "Real-C 滞在シャッフル": lambda: _shuffle_stay(_subsample(c, n, rng), rng),
+        "Copy-A（学習データのコピー）": lambda: _subsample(a, n, rng),
+    }
+    for path in sorted(OUT.glob("gen_*_s0.csv.gz")):
+        name = path.name.removeprefix("gen_").removesuffix("_s0.csv.gz")
+        df = pd.read_csv(path)
+        sources[name] = lambda df=df: _subsample(df, n, rng)
+    rows = {}
+    for name, make in sources.items():
+        rows[name] = pd.DataFrame([row(make()) for _ in range(draws)]).mean().to_dict()
+    return pd.DataFrame(rows).T
+
+
 def evaluate_all(seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
     a, b, c = (read_split(k) for k in "ABC")
     rng = np.random.default_rng(seed)
