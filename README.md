@@ -15,6 +15,7 @@
 - ICUバイタル時系列での検証（eICU Demo）: [docs/icu-vitals-verification.md](docs/icu-vitals-verification.md)（issue #15）
 - 数理モデルによるシミュレーションデータ生成の調査: [docs/survey-simulation.md](docs/survey-simulation.md)（issue #18）
 - DGANを適切な更新回数で再実験した結果: [docs/dgan-rerun.md](docs/dgan-rerun.md)（issue #17）
+- 生理エンジンPulseで作ったICUバイタルの評価: [docs/pulse-vitals.md](docs/pulse-vitals.md)（issue #21）。実行環境は[external/pulse/](external/pulse/run.py)
 
 ## セットアップ
 
@@ -54,6 +55,8 @@ uv run transyn vitals-prepare                          # 心拍数・SpO2・呼�
 uv run transyn --seed 0 vitals-fit par --epochs 200    # 学習と生成 → outputs/vitals/gen_par_s0.csv.gz
 uv run transyn vitals-evaluate                         # → outputs/vitals/results.md
 ```
+
+Pulseの仮想患者（#21）の作り方は[docs/pulse-vitals.md](docs/pulse-vitals.md)の再現手順にある。Pulseは116系列しかないため、`uv run transyn vitals-evaluate --n 116`で全モデルの系列数を揃えて評価する（→ `outputs/vitals/results_n116.md`）。
 
 `data/`と`outputs/`はgit管理外。
 

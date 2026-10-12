@@ -270,13 +270,15 @@ def _log_psd(x: np.ndarray) -> np.ndarray:
     return np.log(p + 1e-9)
 
 
-def summary_features(x: np.ndarray, static: pd.DataFrame) -> np.ndarray:
-    """滞在ごとの要約特徴量: 変数ごとの平均・標準偏差・最小・最大・傾き・ラグ 1 自己相関と年齢。"""
+def summary_features(x: np.ndarray, static: pd.DataFrame, with_age: bool = True) -> np.ndarray:
+    """滞在ごとの要約特徴量: 変数ごとの平均・標準偏差・最小・最大・傾き・ラグ 1 自己相関と年齢（with_age=False なら年齢を除く）。"""
     t = np.arange(x.shape[1]) - (x.shape[1] - 1) / 2
     slope = (x * t[None, :, None]).sum(1) / (t**2).sum()
     z = x - x.mean(1, keepdims=True)
     ac1 = (z[:, 1:] * z[:, :-1]).sum(1) / ((z**2).sum(1) + 1e-9)
-    feats = [x.mean(1), x.std(1), x.min(1), x.max(1), slope, ac1, static["age"].to_numpy(float)[:, None]]
+    feats = [x.mean(1), x.std(1), x.min(1), x.max(1), slope, ac1]
+    if with_age:
+        feats.append(static["age"].to_numpy(float)[:, None])
     return np.concatenate(feats, axis=1)
 
 
@@ -302,7 +304,7 @@ def fidelity(real: pd.DataFrame, gen: pd.DataFrame, seed: int = 0) -> dict[str, 
     }
 
 
-def discriminative(real: pd.DataFrame, gen: pd.DataFrame, seed: int = 0) -> float:
+def discriminative(real: pd.DataFrame, gen: pd.DataFrame, seed: int = 0, with_age: bool = True) -> float:
     """判別スコア: 要約特徴量で実データと合成データを見分ける分類器の正解率から 0.5 を引いた値（0 が理想）。
 
     正解率が 0.5 を下回る場合は 0 とする。合成データが学習データのコピーだと、同じ系列が両方のラベルで入り、
@@ -311,8 +313,8 @@ def discriminative(real: pd.DataFrame, gen: pd.DataFrame, seed: int = 0) -> floa
     from sklearn.ensemble import HistGradientBoostingClassifier
     from sklearn.model_selection import cross_val_score
 
-    fr = summary_features(to_array(real), static_of(real))
-    fg = summary_features(to_array(gen), static_of(gen))
+    fr = summary_features(to_array(real), static_of(real), with_age)
+    fg = summary_features(to_array(gen), static_of(gen), with_age)
     n = min(len(fr), len(fg))
     rng = np.random.default_rng(seed)
     x = np.vstack([fr[rng.choice(len(fr), n, replace=False)], fg[rng.choice(len(fg), n, replace=False)]])
@@ -420,12 +422,15 @@ def evaluate_matched(n: int, draws: int, seed: int = 0) -> pd.DataFrame:
 
     実データの基準と各生成結果から n 系列を無作為に抜き出し、draws 回の平均をとる。n 系列以下のものは全体を使う。
     実データの基準（C とそのシャッフル、A のコピー）も同じ n に抜き出す。
+    Disc_noAge は年齢を除いた要約特徴量での判別スコア（Pulse は年齢を 18〜65 歳に制限して作るため）。
     """
     a, b, c = (read_split(k) for k in "ABC")
     rng = np.random.default_rng(seed)
 
     def row(gen: pd.DataFrame) -> dict[str, float]:
-        return {**fidelity(a, gen, seed), "TSTR_AUROC": utility(gen, b, seed), **privacy(a, b, gen)}
+        fid = fidelity(a, gen, seed)
+        fid["Disc_noAge"] = discriminative(a, gen, seed, with_age=False)
+        return {**fid, "TSTR_AUROC": utility(gen, b, seed), **privacy(a, b, gen)}
 
     sources = {
         "Real-C（実データ・未学習）": lambda: _subsample(c, n, rng),
