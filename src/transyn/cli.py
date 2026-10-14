@@ -219,15 +219,18 @@ def syninf_tab_summary(args: argparse.Namespace) -> None:
     md = "## 表データでの第 1 種の過誤率（M = n、真値を帰無仮説にした検定）\n\n" + table.to_markdown(index=False, floatfmt=".3f")
     (syninf_tabular.OUT / "results.md").write_text(md + "\n")
 def prognostic_run(args: argparse.Namespace) -> None:
-    prognostic.OUT.mkdir(parents=True, exist_ok=True)
-    reps, meta = prognostic.experiment(args.ns, args.reps, seed=args.seed, par_epochs=args.par_epochs)
-    reps.to_csv(prognostic.OUT / "reps.csv.gz", index=False)
-    meta.to_csv(prognostic.OUT / "meta.csv", index=False)
+    # 病院の分け方（--seed）ごとに出力先を分ける
+    out = prognostic.OUT / f"split{args.seed}"
+    out.mkdir(parents=True, exist_ok=True)
+    kinds = tuple(args.score_kinds or prognostic.SCORE_KINDS)
+    reps, meta = prognostic.experiment(args.ns, args.reps, seed=args.seed, par_epochs=args.par_epochs, score_kinds=kinds)
+    reps.to_csv(out / "reps.csv.gz", index=False)
+    meta.to_csv(out / "meta.csv", index=False)
     table = prognostic.summarize(reps)
-    table.to_csv(prognostic.OUT / "results.csv", index=False)
+    table.to_csv(out / "results.csv", index=False)
     md = "## 予後予測と結果の相関（対象の全被験者）\n\n" + meta.to_markdown(index=False, floatfmt=".3f")
     md += "\n\n## 第 1 種の過誤率・検出力・必要人数\n\n" + table.to_markdown(index=False, floatfmt=".3f")
-    (prognostic.OUT / "results.md").write_text(md + "\n")
+    (out / "results.md").write_text(md + "\n")
     print(md)
 
 
@@ -307,6 +310,8 @@ def main() -> None:
     p.add_argument("--ns", type=int, nargs="+", required=True, help="対象から抜く被験者数")
     p.add_argument("--reps", type=int, required=True)
     p.add_argument("--par-epochs", type=int, default=200)
+    p.add_argument("--score-kinds", nargs="+", choices=list(prognostic.SCORE_KINDS), default=None,
+                   help="使う予後予測（省略時はすべて）。prog-syn-par は PAR の学習に時間がかかる")
     p.set_defaults(func=prognostic_run)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
