@@ -122,9 +122,12 @@ def load_pool() -> pd.DataFrame:
 
 
 def run(model: str, n: int, m: int, reps: int, epochs: int, start: int = 0) -> Path:
-    """reps 回の試行を行い、1 回ごとに CSV に追記する。既にある seed は飛ばす（途中から再開できる）。"""
+    """reps 回の試行を行い、1 回ごとに CSV に追記する。既にある seed は飛ばす（途中から再開できる）。
+
+    出力はシードの開始番号ごとに別ファイルにするので、開始番号を変えて並行に実行できる。
+    """
     OUT.mkdir(parents=True, exist_ok=True)
-    path = OUT / f"reps_{model}_n{n}_m{m}.csv"
+    path = OUT / f"reps_{model}_n{n}_m{m}_s{start}.csv"
     done = set(pd.read_csv(path)["seed"]) if path.exists() else set()
     pool = load_pool()
     for seed in range(start, start + reps):
