@@ -20,6 +20,8 @@ ICU のバイタル時系列（eICU Demo, issue #15）:
 
     uv run transyn syninf-run var1 --n 100 --m 100 --reps 500 --epochs 0
     uv run transyn syninf-summary                  # outputs/syninf/results.md
+    uv run transyn syninf-tab-run ctgan --n 500 --reps 200   # 表データでの追試（Decruyenaere et al. 2024）
+    uv run transyn syninf-tab-summary              # outputs/syninf_tabular/results.md
 """
 
 from __future__ import annotations
@@ -32,7 +34,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import data, ehr, metrics, models, seqgpt, syninf, vitals
+from . import data, ehr, metrics, models, seqgpt, syninf, syninf_tabular, vitals
 
 # EHR では数値列のない系列向けの GPT 型モデルも使える
 EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
@@ -203,6 +205,18 @@ def syninf_summary(args: argparse.Namespace) -> None:
     print(md)
 
 
+def syninf_tab_run(args: argparse.Namespace) -> None:
+    syninf_tabular.run(args.model, n=args.n, reps=args.reps, start=args.start)
+
+
+def syninf_tab_summary(args: argparse.Namespace) -> None:
+    table = syninf_tabular.summarize(sorted(syninf_tabular.OUT.glob("reps_*.csv")))
+    table.to_csv(syninf_tabular.OUT / "results.csv", index=False)
+    md = "## 表データでの第 1 種の過誤率（M = n、真値を帰無仮説にした検定）\n\n" + table.to_markdown(index=False, floatfmt=".3f")
+    (syninf_tabular.OUT / "results.md").write_text(md + "\n")
+    print(md)
+
+
 def build_site(args: argparse.Namespace) -> None:
     from . import site
 
@@ -265,6 +279,16 @@ def main() -> None:
 
     p = sub.add_parser("syninf-summary")
     p.set_defaults(func=syninf_summary)
+
+    p = sub.add_parser("syninf-tab-run", help="表データでの合成データの検定の追試")
+    p.add_argument("model", choices=list(syninf_tabular.MODELS))
+    p.add_argument("--n", type=int, required=True)
+    p.add_argument("--reps", type=int, required=True)
+    p.add_argument("--start", type=int, default=0)
+    p.set_defaults(func=syninf_tab_run)
+
+    p = sub.add_parser("syninf-tab-summary")
+    p.set_defaults(func=syninf_tab_summary)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
     p.add_argument("--out", type=Path, default=Path("_site"))
