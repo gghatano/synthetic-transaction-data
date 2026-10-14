@@ -26,6 +26,11 @@ ICU のバイタル時系列（eICU Demo, issue #15）:
 予後予測の共変量で必要な被験者数を減らせるか（GHE issue 2）:
 
     uv run transyn prognostic-run --ns 20 40 60 100 200 --reps 1000   # outputs/prognostic/results.md
+
+学習人数が少ないときの生成モデル（GHE issue 3）:
+
+    uv run transyn --seed 0 smalln-run var1 --n 20
+    uv run transyn smalln-evaluate                 # outputs/smalln/results.md
 """
 
 from __future__ import annotations
@@ -38,7 +43,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import data, ehr, metrics, models, prognostic, seqgpt, syninf, syninf_tabular, vitals
+from . import data, ehr, metrics, models, prognostic, seqgpt, smalln, syninf, syninf_tabular, vitals
 
 # EHR では数値列のない系列向けの GPT 型モデルも使える
 EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
@@ -234,6 +239,23 @@ def prognostic_run(args: argparse.Namespace) -> None:
     print(md)
 
 
+def smalln_run(args: argparse.Namespace) -> None:
+    started = time.time()
+    path = smalln.run(args.model, args.n, args.seed)
+    print(json.dumps({"path": str(path), "seconds": round(time.time() - started)}))
+
+
+def smalln_evaluate(args: argparse.Namespace) -> None:
+    by_seed = smalln.evaluate()
+    by_seed.to_csv(smalln.OUT / "results_by_seed.csv", index=False)
+    grouped = by_seed.drop(columns="seed").groupby(["model", "n"], sort=True)
+    mean, std = grouped.mean(), grouped.std()
+    md = "## 学習人数ごとの忠実度・有用性・プライバシ（シード平均。忠実度は実データ C との比較）\n\n" + mean.to_markdown(floatfmt=".3f")
+    md += "\n\n## シード間の標準偏差\n\n" + std.to_markdown(floatfmt=".3f")
+    (smalln.OUT / "results.md").write_text(md + "\n")
+    print(md)
+
+
 def build_site(args: argparse.Namespace) -> None:
     from . import site
 
@@ -313,6 +335,14 @@ def main() -> None:
     p.add_argument("--score-kinds", nargs="+", choices=list(prognostic.SCORE_KINDS), default=None,
                    help="使う予後予測（省略時はすべて）。prog-syn-par は PAR の学習に時間がかかる")
     p.set_defaults(func=prognostic_run)
+
+    p = sub.add_parser("smalln-run", help="学習人数を n に絞って生成モデルを学習・生成する")
+    p.add_argument("model", choices=list(smalln.MODELS))
+    p.add_argument("--n", type=int, required=True)
+    p.set_defaults(func=smalln_run)
+
+    p = sub.add_parser("smalln-evaluate")
+    p.set_defaults(func=smalln_evaluate)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
     p.add_argument("--out", type=Path, default=Path("_site"))
