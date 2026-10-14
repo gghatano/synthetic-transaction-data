@@ -22,6 +22,10 @@ ICU のバイタル時系列（eICU Demo, issue #15）:
     uv run transyn syninf-summary                  # outputs/syninf/results.md
     uv run transyn syninf-tab-run ctgan --n 500 --reps 200   # 表データでの追試（Decruyenaere et al. 2024）
     uv run transyn syninf-tab-summary              # outputs/syninf_tabular/results.md
+
+予後予測の共変量で必要な被験者数を減らせるか（GHE issue 2）:
+
+    uv run transyn prognostic-run --ns 20 40 60 100 200 --reps 1000   # outputs/prognostic/results.md
 """
 
 from __future__ import annotations
@@ -34,7 +38,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import data, ehr, metrics, models, seqgpt, syninf, syninf_tabular, vitals
+from . import data, ehr, metrics, models, prognostic, seqgpt, syninf, syninf_tabular, vitals
 
 # EHR では数値列のない系列向けの GPT 型モデルも使える
 EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
@@ -214,6 +218,16 @@ def syninf_tab_summary(args: argparse.Namespace) -> None:
     table.to_csv(syninf_tabular.OUT / "results.csv", index=False)
     md = "## 表データでの第 1 種の過誤率（M = n、真値を帰無仮説にした検定）\n\n" + table.to_markdown(index=False, floatfmt=".3f")
     (syninf_tabular.OUT / "results.md").write_text(md + "\n")
+def prognostic_run(args: argparse.Namespace) -> None:
+    prognostic.OUT.mkdir(parents=True, exist_ok=True)
+    reps, meta = prognostic.experiment(args.ns, args.reps, seed=args.seed, par_epochs=args.par_epochs)
+    reps.to_csv(prognostic.OUT / "reps.csv.gz", index=False)
+    meta.to_csv(prognostic.OUT / "meta.csv", index=False)
+    table = prognostic.summarize(reps)
+    table.to_csv(prognostic.OUT / "results.csv", index=False)
+    md = "## 予後予測と結果の相関（対象の全被験者）\n\n" + meta.to_markdown(index=False, floatfmt=".3f")
+    md += "\n\n## 第 1 種の過誤率・検出力・必要人数\n\n" + table.to_markdown(index=False, floatfmt=".3f")
+    (prognostic.OUT / "results.md").write_text(md + "\n")
     print(md)
 
 
@@ -289,6 +303,11 @@ def main() -> None:
 
     p = sub.add_parser("syninf-tab-summary")
     p.set_defaults(func=syninf_tab_summary)
+    p = sub.add_parser("prognostic-run", help="予後予測の共変量による必要人数の削減の半合成実験")
+    p.add_argument("--ns", type=int, nargs="+", required=True, help="対象から抜く被験者数")
+    p.add_argument("--reps", type=int, required=True)
+    p.add_argument("--par-epochs", type=int, default=200)
+    p.set_defaults(func=prognostic_run)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
     p.add_argument("--out", type=Path, default=Path("_site"))
