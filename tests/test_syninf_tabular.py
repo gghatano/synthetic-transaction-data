@@ -34,3 +34,16 @@ def test_コピーする生成器なら合成と実データの推定が一致�
     assert row["death_therapy_reject_naive"] == row["death_therapy_reject_real"]
     # 補正で標準誤差を √2 倍にすると、棄却は増えない
     assert row["death_therapy_reject_corrected"] <= row["death_therapy_reject_naive"]
+
+
+def test_集計は推定できなかった試行の割合を出す(tmp_path):
+    import pandas as pd
+
+    rows = [tab.run_rep(n=200, model_fn=lambda df, m, seed: df.copy(), seed=s) for s in range(4)]
+    rows[0]["death_therapy_syn"] = float("nan")
+    path = tmp_path / "reps.csv"
+    pd.DataFrame([{"model": "copy", **r} for r in rows]).to_csv(path, index=False)
+    table = tab.summarize([path])
+    dt = table[table["estimator"] == "death_therapy"].iloc[0]
+    assert dt["nonestimable"] == pytest.approx(0.25)
+    assert dt["reps"] == 3

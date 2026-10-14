@@ -214,6 +214,8 @@ def summarize(paths: list[Path]) -> pd.DataFrame:
             ok = g[g[f"{name}_syn"].notna()]
             rows.append({
                 "model": model, "n": n, "estimator": name, "reps": len(ok),
+                # 合成データで推定できなかった（死亡が 1 種類しかない、分離が起きた）試行の割合
+                "nonestimable": float(1 - len(ok) / len(g)),
                 "bias": float((ok[f"{name}_syn"] - truth).mean()),
                 "type1_real": float(ok[f"{name}_reject_real"].mean()),
                 "type1_naive": float(ok[f"{name}_reject_naive"].mean()),
