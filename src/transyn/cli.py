@@ -25,7 +25,7 @@ ICU のバイタル時系列（eICU Demo, issue #15）:
 
 予後予測の共変量で必要な被験者数を減らせるか（GHE issue 2）:
 
-    uv run transyn prognostic-run --ns 20 40 60 100 200 --reps 1000   # outputs/prognostic/results.md
+    uv run transyn prognostic-run --ns 20 40 60 100 200 --reps 1000   # outputs/prognostic/split0/results.md
 
 学習人数が少ないときの生成モデル（GHE issue 3）:
 
