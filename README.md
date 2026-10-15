@@ -16,6 +16,12 @@
 - 数理モデルによるシミュレーションデータ生成の調査: [docs/survey-simulation.md](docs/survey-simulation.md)（issue #18）
 - DGANを適切な更新回数で再実験した結果: [docs/dgan-rerun.md](docs/dgan-rerun.md)（issue #17）
 
+2026-10-14以降のissueは社内GHE（https://github.wing.sysrdc.com/dsec/synthetic-transaction-data ）にある。上の#番号は公開リポジトリのもので、番号が重なるので「GHE issue 1」のように書き分ける。
+
+- 合成データで水増しして検定すると何が起きるか: [docs/synthetic-inference.md](docs/synthetic-inference.md)（GHE issue 1）
+- 外部データの予後予測を共変量にして必要な被験者数を減らす: [docs/prognostic-covariate.md](docs/prognostic-covariate.md)（GHE issue 2）
+- 学習人数が少ないときの生成モデル: [docs/small-n-generators.md](docs/small-n-generators.md)（GHE issue 3）
+
 ## セットアップ
 
 [uv](https://docs.astral.sh/uv/)でPython 3.12の環境を作る。PyTorchはCPU版を使う。
@@ -54,6 +60,18 @@ uv run transyn vitals-prepare                          # 心拍数・SpO2・呼�
 uv run transyn --seed 0 vitals-fit par --epochs 200    # 学習と生成 → outputs/vitals/gen_par_s0.csv.gz
 uv run transyn vitals-evaluate                         # → outputs/vitals/results.md
 ```
+
+合成データでの推論と必要人数（GHE issue 1〜3）も、同じバイタルの系列（`vitals-prepare`の出力）を使う。
+
+```bash
+uv run transyn syninf-tab-run ctgan --n 500 --reps 200       # 表データでの追試 → outputs/syninf_tabular/
+uv run transyn syninf-run var1 --n 100 --m 100 --reps 500 --epochs 0   # 合成データでの検定の偽陽性 → outputs/syninf/
+uv run transyn prognostic-run --ns 20 40 60 100 200 --reps 1000        # 予後予測の共変量 → outputs/prognostic/split0/
+uv run transyn --seed 0 smalln-run var1 --n 20                # 学習人数を絞った生成 → outputs/smalln/
+uv run transyn smalln-evaluate
+```
+
+テストは`uv run pytest`で実行する。
 
 `data/`と`outputs/`はgit管理外。
 

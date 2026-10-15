@@ -225,11 +225,18 @@ def fit_generate_var1(train: pd.DataFrame, n_seqs: int, epochs: int, seed: int) 
     noise_cov = np.cov((cur - prev @ coef).T)
     stay = np.column_stack([mean, np.log(std), static["age"].to_numpy(float)])
     died = static["died"].to_numpy()
+    # 群ごとの平均と共分散。人数が次元以下の群（少人数の学習で死亡退院が数人しかいない場合など）は共分散が
+    # 推定できないので、群の平均を引いた残差でまとめた共分散を使う（GHE issue 3）
+    resid = stay - np.vstack([stay[died == d].mean(0) for d in died])
+    pooled = np.cov(resid.T)
+    params = {}
+    for d in np.unique(died):
+        group = stay[died == d]
+        params[d] = (group.mean(0), np.cov(group.T) if len(group) > stay.shape[1] else pooled)
     rows = []
     for i in range(n_seqs):
         d = int(rng.random() < died.mean())
-        group = stay[died == d]
-        s = rng.multivariate_normal(group.mean(0), np.cov(group.T))
+        s = rng.multivariate_normal(*params[d])
         m, sd, age = s[: len(VARS)], np.exp(s[len(VARS) : 2 * len(VARS)]), s[-1]
         zt = rng.multivariate_normal(np.zeros(len(VARS)), np.eye(len(VARS)))
         for t in range(STEPS):
