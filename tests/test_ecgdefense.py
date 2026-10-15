@@ -68,3 +68,10 @@ def test_主成分を減らした分布でも形はそろう(setup):
     _, mem, _, train = setup
     syn = ecgdefense.generate("E2-pc", train, len(mem), 20, seed=0, n_components=5)
     assert syn.beats.shape[1] == ecg.BEAT_LEN and len(syn.persons) == len(mem)
+
+
+def test_E1の除外版は外れた人を除いてから集団の平均の形で作る(setup):
+    _, mem, _, train = setup
+    syn = ecgdefense.generate("E1-trim", train, len(mem), 30, seed=0, frac=0.25)
+    assert len(syn.persons) == len(mem)
+    assert _person_means(syn).std(0).mean() < 0.3 * _person_means(ecgdefense.generate("E3-kanon", train, len(mem), 30, seed=0, k=1)).std(0).mean()

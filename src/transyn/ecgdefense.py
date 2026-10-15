@@ -113,6 +113,8 @@ def _microaggregate(means: np.ndarray, k: int) -> np.ndarray:
 
 def generate(kind: str, train: ecglink.BeatSet, n_persons: int, beats_per_person: int, seed: int, **kw) -> ecglink.BeatSet:
     rng = np.random.default_rng(seed)
+    if kind == "E1-trim":
+        return ecglink.generate("E1", trim_persons(train, kw.get("frac", 0.2)), n_persons, beats_per_person, seed)
     if kind == "E2-trim":
         return ecglink.generate("E2", trim_persons(train, kw.get("frac", 0.2)), n_persons, beats_per_person, seed)
     if kind == "E2-pc":
@@ -160,6 +162,7 @@ CONFIGS = (
     + [(f"E2-dp-eps{e:g}", "E2-dp", {"epsilon": e}) for e in (1.0, 4.0, 8.0, float("inf"))]
     + [(f"E2-agg-k{k}", "E2-agg", {"k": k}) for k in (3, 5)]
     + [(f"E2-pc{c}", "E2-pc", {"n_components": c}) for c in (3, 5)]
+    + [(f"E1-trim-{f:g}", "E1-trim", {"frac": f}) for f in (0.1, 0.2)]
 )
 
 

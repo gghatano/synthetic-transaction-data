@@ -380,11 +380,13 @@ def ecg_linkage(args: argparse.Namespace) -> None:
 def ecg_defense(args: argparse.Namespace) -> None:
     ecglink.OUT.mkdir(parents=True, exist_ok=True)
     bs = ecglink.load(args.dataset)
-    rows = ecgdefense.experiment(bs, seeds=tuple(range(args.seeds)), beats_per_person=args.beats,
+    configs = [c for c in ecgdefense.CONFIGS if not args.only or c[0] in args.only]
+    rows = ecgdefense.experiment(bs, seeds=tuple(range(args.seeds)), configs=configs, beats_per_person=args.beats,
                                  utility=args.dataset == "mitdb")
     df = pd.DataFrame(rows)
-    df.to_csv(ecglink.OUT / f"{args.dataset}_defense.csv", index=False)
-    ecgdefense.experiment.per_person.to_csv(ecglink.OUT / f"{args.dataset}_defense_per_person.csv", index=False)
+    tag = "_" + "_".join(args.only) if args.only else ""
+    df.to_csv(ecglink.OUT / f"{args.dataset}_defense{tag}.csv", index=False)
+    ecgdefense.experiment.per_person.to_csv(ecglink.OUT / f"{args.dataset}_defense{tag}_per_person.csv", index=False)
     print(df.drop(columns="seed").groupby("config", sort=False).mean().to_markdown(floatfmt=".3f"))
 
 
@@ -524,6 +526,7 @@ def main() -> None:
     p.add_argument("--dataset", choices=["ecgid", "mitdb"], required=True)
     p.add_argument("--seeds", type=int, default=5)
     p.add_argument("--beats", type=int, default=24)
+    p.add_argument("--only", nargs="+", default=None, help="この名前の設定だけを回す（例: E1-trim-0.2）")
     p.set_defaults(func=ecg_defense)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
