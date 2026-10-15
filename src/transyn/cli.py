@@ -51,6 +51,10 @@ ICU のバイタル時系列（eICU Demo, issue #15）:
 
     uv run transyn dp-evaluate                     # outputs/dpsynth/evaluate.csv
     uv run transyn dp-audit --n 20 --reps 200      # outputs/dpsynth/audit_n20.csv
+
+心電図の合成データのそれっぽさと本人との紐づき（GHE issue 17）:
+
+    uv run transyn ecg-linkage --dataset ecgid     # outputs/ecglink/ecgid_rows.csv
 """
 
 from __future__ import annotations
@@ -63,7 +67,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import attacks, augment, data, dpsynth, ehr, metrics, models, prognostic, seqgpt, showcase, smalln, syninf, syninf_tabular, vitals
+from . import attacks, augment, data, dpsynth, ecglink, ehr, metrics, models, prognostic, seqgpt, showcase, smalln, syninf, syninf_tabular, vitals
 
 # EHR では数値列のない系列向けの GPT 型モデルも使える
 EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
@@ -360,6 +364,18 @@ def dp_audit(args: argparse.Namespace) -> None:
     print(df.groupby(["level", "epsilon", "kind"])[["auc", "eps_lb"]].agg(["mean", "max"]).to_markdown(floatfmt=".3f"))
 
 
+def ecg_linkage(args: argparse.Namespace) -> None:
+    ecglink.OUT.mkdir(parents=True, exist_ok=True)
+    bs = ecglink.load(args.dataset)
+    print(f"{args.dataset}: {len(bs.persons)} 人, {len(bs.beats)} 拍")
+    rows, per_person = ecglink.experiment(bs, seeds=tuple(range(args.seeds)), beats_per_person=args.beats,
+                                          utility=args.dataset == "mitdb")
+    df = pd.DataFrame(rows)
+    df.to_csv(ecglink.OUT / f"{args.dataset}_rows.csv", index=False)
+    per_person.to_csv(ecglink.OUT / f"{args.dataset}_per_person.csv", index=False)
+    print(df.drop(columns="seed").groupby("kind", sort=False).mean().to_markdown(floatfmt=".3f"))
+
+
 def build_site(args: argparse.Namespace) -> None:
     from . import site
 
@@ -485,6 +501,12 @@ def main() -> None:
     p.add_argument("--n", type=int, required=True)
     p.add_argument("--reps", type=int, required=True)
     p.set_defaults(func=dp_audit)
+
+    p = sub.add_parser("ecg-linkage", help="心電図の合成データのそれっぽさと本人との紐づき")
+    p.add_argument("--dataset", choices=["ecgid", "mitdb"], required=True)
+    p.add_argument("--seeds", type=int, default=5, help="メンバーの分け方の数")
+    p.add_argument("--beats", type=int, default=24, help="合成の被験者 1 人あたりの拍数")
+    p.set_defaults(func=ecg_linkage)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
     p.add_argument("--out", type=Path, default=Path("_site"))
