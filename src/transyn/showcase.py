@@ -95,7 +95,21 @@ def _var_sample(coef: np.ndarray, noise_cov: np.ndarray, n: int, rng: np.random.
     return z
 
 
-def generate(level: str, train: pd.DataFrame, n_seqs: int, seed: int) -> pd.DataFrame:
+def generate(level: str, train: pd.DataFrame, n_seqs: int, seed: int, tail_clip: float | None = None) -> pd.DataFrame:
+    """段階 level の見本用データを n_seqs 人分作る。
+
+    tail_clip を与えると、L1〜L4 の値を学習データの [tail_clip, 1 − tail_clip] 分位点で切り詰める。既定の
+    vitals._finalize は学習データの最小・最大で切り詰めるので、実在の被験者の極値がそのまま現れることがある。
+    """
+    gen = _generate(level, train, n_seqs, seed)
+    if tail_clip is not None and level != "L0":
+        for v in vitals.VARS:
+            lo, hi = train[v].quantile([tail_clip, 1 - tail_clip])
+            gen[v] = gen[v].clip(lo, hi)
+    return gen
+
+
+def _generate(level: str, train: pd.DataFrame, n_seqs: int, seed: int) -> pd.DataFrame:
     _seed(seed)
     rng = np.random.default_rng(seed)
     if level == "L0":
@@ -160,10 +174,15 @@ def exact_segment_matches(gen: pd.DataFrame, real: pd.DataFrame, length: int = 1
 
 def disclosure_checks(gen: pd.DataFrame, real: pd.DataFrame, holdout: pd.DataFrame, min_group: int = 10) -> dict:
     """開示リスク: 区間の完全一致、実データの極値の再現、少数の群、距離に基づく指標。"""
+    # 実データの最小・最大のうち、その値をとる被験者が min_group 人未満のもの（特定の人を表す極値）が、
+    # 合成データにそのまま現れるか。SpO2 の 100% のように多くの人がとる天井の値は数えない
     extremes = 0
     for v in vitals.VARS:
         vals = set(np.round(gen[v].to_numpy(), 6))
-        extremes += int(round(real[v].min(), 6) in vals) + int(round(real[v].max(), 6) in vals)
+        r = np.round(real[v].to_numpy(), 6)
+        for x in (r.min(), r.max()):
+            holders = real.loc[r == x, "seq_id"].nunique()
+            extremes += int(holders < min_group and x in vals)
     groups = vitals.static_of(real)["died"].value_counts()
     small = [f"died={g}" for g, c in groups.items() if c < min_group]
     return {
@@ -196,14 +215,16 @@ def relation_stats(df: pd.DataFrame) -> dict[str, float]:
     return {"HRDiffDied": float(diff), "AgeHRCorr": float(np.corrcoef(m["age"], m["hr"])[0, 1])}
 
 
-def evaluate_levels(seeds: tuple[int, ...] = (0, 1, 2)) -> pd.DataFrame:
+def evaluate_levels(seeds: tuple[int, ...] = (0, 1, 2), tail_clip: float = 0.005) -> pd.DataFrame:
+    """段階ごとに、既定（学習データの最小・最大で切り詰め）と、裾を tail_clip で切り詰めた版（-clip）を評価する。"""
     a, b, c = (vitals.read_split(k) for k in "ABC")
     rows = [{"level": "real-C", "seed": 0, **vitals.fidelity(a, c), **relation_stats(c), "TSTR_AUROC": vitals.utility(c, b)}]
-    for level in LEVELS:
+    variants = [(lv, None) for lv in LEVELS] + [(f"{lv}-clip", tail_clip) for lv in LEVELS if lv != "L0"]
+    for name, clip in variants:
         for seed in seeds:
-            gen = generate(level, a, n_seqs=a["seq_id"].nunique(), seed=seed)
+            gen = generate(name.removesuffix("-clip"), a, n_seqs=a["seq_id"].nunique(), seed=seed, tail_clip=clip)
             rows.append({
-                "level": level, "seed": seed,
+                "level": name, "seed": seed,
                 **vitals.fidelity(c, gen, seed), **relation_stats(gen),
                 "TSTR_AUROC": vitals.utility(gen, b, seed),
                 **{k: v for k, v in disclosure_checks(gen, a, b).items() if k != "small_groups"},

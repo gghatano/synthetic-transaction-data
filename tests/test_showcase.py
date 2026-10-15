@@ -76,3 +76,12 @@ def test_構造チェックは列と時点数と範囲を確かめる(train):
     assert all(ok.values())
     broken = gen[gen["t"] < 100]
     assert not showcase.structure_checks(broken, train)["steps"]
+
+
+@pytest.mark.parametrize("level", ["L1", "L3", "L4"])
+def test_裾を切り詰めると実データの極値は再現されない(train, level):
+    gen = showcase.generate(level, train, n_seqs=200, seed=0, tail_clip=0.005)
+    assert showcase.disclosure_checks(gen, train, holdout=train)["extreme_values_reproduced"] == 0
+    for v in ("heartrate", "sao2", "respiration"):
+        lo, hi = train[v].quantile([0.005, 0.995])
+        assert gen[v].min() >= lo - 1e-9 and gen[v].max() <= hi + 1e-9

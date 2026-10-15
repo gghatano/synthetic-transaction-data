@@ -304,7 +304,7 @@ def showcase_release(args: argparse.Namespace) -> None:
     a, b = vitals.read_split("A"), vitals.read_split("B")
     out = showcase.OUT / f"release_{args.level}"
     out.mkdir(parents=True, exist_ok=True)
-    gen = showcase.generate(args.level, a, n_seqs=args.n_seqs, seed=args.seed)
+    gen = showcase.generate(args.level, a, n_seqs=args.n_seqs, seed=args.seed, tail_clip=args.tail_clip)
     checks = {
         "disclosure": showcase.disclosure_checks(gen, a, b),
         "structure": showcase.structure_checks(gen, a),
@@ -425,6 +425,7 @@ def main() -> None:
     p = sub.add_parser("showcase-release", help="見本用データを 1 つの段階で作り、公開前チェックと一緒に書き出す")
     p.add_argument("--level", choices=list(showcase.LEVELS), required=True)
     p.add_argument("--n-seqs", type=int, default=50, help="見本として出す系列数")
+    p.add_argument("--tail-clip", type=float, default=0.005, help="値を学習データのこの分位点で切り詰める（実在の極値を出さない）")
     p.set_defaults(func=showcase_release)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
