@@ -110,15 +110,15 @@ issue #1「GAN系の手法を用いたトランザクションデータの合成
 
 ### トランザクション合成の事例・ベンチマーク
 
-- [S1] Sajja. *Synthetic Tabular Generators Fail to Preserve Behavioral Fraud Patterns: A Benchmark on Temporal, Velocity, and Multi-Account Signals*. 2026（DMLR投稿）. https://arxiv.org/abs/2604.13125 — CTGAN, TVAE, GaussianCopula, TabularARGNをIEEE-CISとAmazon Fraudで比較
+- [S1] Sajja. *Synthetic Tabular Generators Fail to Preserve Behavioral Fraud Patterns: A Benchmark on Temporal, Velocity, and Multi-Account Signals*. 2026（DMLR投稿）. https://arxiv.org/abs/2604.13125 。CTGAN, TVAE, GaussianCopula, TabularARGNをIEEE-CISとAmazon Fraudで比較
 - [S2] Kwon et al. *Seq2Synth: Benchmarking Temporal Fidelity in Synthetic Sequential Tabular Data*. CIKM 2026. https://arxiv.org/abs/2607.15606
-- [S3] Meldrum, Suleiman, Rabhi, Alibasa. *New Money: A Systematic Review of Synthetic Data Generation for Finance*. 2025. https://arxiv.org/abs/2510.26076 — 2018年以降の72研究のレビュー
-- [S4] Karst et al. *Generative AI for Banks: Benchmarks and Algorithms for Synthetic Financial Transaction Data*. WITS 2024. https://arxiv.org/abs/2412.14730 — CTGAN, DGAN, WGAN, FinDiff, TVAEを比較
+- [S3] Meldrum, Suleiman, Rabhi, Alibasa. *New Money: A Systematic Review of Synthetic Data Generation for Finance*. 2025. https://arxiv.org/abs/2510.26076 。2018年以降の72研究のレビュー
+- [S4] Karst et al. *Generative AI for Banks: Benchmarks and Algorithms for Synthetic Financial Transaction Data*. WITS 2024. https://arxiv.org/abs/2412.14730 。CTGAN, DGAN, WGAN, FinDiff, TVAEを比較
 - [S5] Nickerson et al. *Banksformer: A Deep Generative Model for Synthetic Transaction Sequences*. ECML PKDD 2022. https://doi.org/10.1007/978-3-031-26422-1_8 / https://github.com/BigTuna08/Banksformer_ecml_2022
 - [S6] Mehri et al. *BankGAN: A Generative Model for Synthetic Financial Transactions*. Canadian AI 2024. https://assets.pubpub.org/vgjxzekz/Mehri-71716794117674.pdf（修士論文版: Mehri, *Generating Bank Transaction Sequences with Tabular GAN models*, Memorial University, 2024）
 - [S7] Zakharov, Stavinova, Lysenko. *TRGAN: A Time-Dependent Generative Adversarial Network for Synthetic Transactional Data Generation*. ICSeB 2023. https://doi.org/10.1145/3641067.3641076
 - [S8] CTGANによるカード不正データ合成・オーバーサンプリングの事例群（例: PeerJ Computer Science 2023, https://peerj.com/articles/cs-1634.pdf）。検索結果の要約に頼った部分があり、数値の出典は要原典確認
-- [S9] Potluru et al. *Synthetic Data Applications in Finance*. 2024. https://arxiv.org/abs/2401.00081 — 金融における合成データの用途サーベイ
+- [S9] Potluru et al. *Synthetic Data Applications in Finance*. 2024. https://arxiv.org/abs/2401.00081 。金融における合成データの用途サーベイ
 - [S10] Doan, Veira, Ray, Keng. *Generating Realistic Sequences of Customer-level Transactions for Retail Datasets*. ICDM Workshops 2018. https://arxiv.org/abs/1901.05577
 - [S11] Tkachuk, Łukasik, Wróblewska. *Consumer Transactions Simulation Through Generative Adversarial Networks Under Stock Constraints in Large-Scale Retail*. Electronics 2025. https://doi.org/10.3390/electronics14020284
 - [S12] Xia, Wang, Mabry, Cheng. *Advancing Retail Data Science: Comprehensive Evaluation of Synthetic Data*. 2024. https://arxiv.org/abs/2406.13130

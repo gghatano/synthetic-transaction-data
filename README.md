@@ -16,6 +16,20 @@
 - 数理モデルによるシミュレーションデータ生成の調査: [docs/survey-simulation.md](docs/survey-simulation.md)（issue #18）
 - DGANを適切な更新回数で再実験した結果: [docs/dgan-rerun.md](docs/dgan-rerun.md)（issue #17）
 
+2026-10-14以降のissueは社内のリポジトリ（GHE）で管理している。上の#番号はこの公開リポジトリのもので、番号が重なるので、社内のissueは「GHE issue 1」のように書き分ける。
+
+- 合成データで水増しして検定すると何が起きるか: [docs/synthetic-inference.md](docs/synthetic-inference.md)（GHE issue 1）
+- 外部データの予後予測を共変量にして必要な被験者数を減らす: [docs/prognostic-covariate.md](docs/prognostic-covariate.md)（GHE issue 2）
+- 学習人数が少ないときの生成モデル: [docs/small-n-generators.md](docs/small-n-generators.md)（GHE issue 3）
+- 予測モデルの学習で合成データは実データ何人分になるか: [docs/augmentation.md](docs/augmentation.md)（GHE issue 8）
+- 見本用データの忠実度の段階と公開前チェック: [docs/showcase-levels.md](docs/showcase-levels.md)（GHE issue 9）
+- 見本用データへのプライバシ攻撃: [docs/attacks.md](docs/attacks.md)（GHE issue 13）
+- 見本用データの開示リスクへの対策と保証（差分プライバシー・外れた被験者の除外）: [docs/dp-showcase.md](docs/dp-showcase.md)（GHE issue 14）
+- 心電図の合成データのそれっぽさと本人との紐づき: [docs/ecg-linkage.md](docs/ecg-linkage.md)（GHE issue 17）
+- 心電図の合成データの本人との紐づきへの対策: [docs/ecg-defense.md](docs/ecg-defense.md)（GHE issue 18）
+- 合成データの作り方（全手法の手順と式）: [docs/synthesis-methods.md](docs/synthesis-methods.md)（GHE issue 22）
+- 差分プライバシーの保証の根拠と限界: [docs/dp-guarantee.md](docs/dp-guarantee.md)（GHE issue 22）
+
 ## セットアップ
 
 [uv](https://docs.astral.sh/uv/)でPython 3.12の環境を作る。PyTorchはCPU版を使う。
@@ -54,6 +68,33 @@ uv run transyn vitals-prepare                          # 心拍数・SpO2・呼�
 uv run transyn --seed 0 vitals-fit par --epochs 200    # 学習と生成 → outputs/vitals/gen_par_s0.csv.gz
 uv run transyn vitals-evaluate                         # → outputs/vitals/results.md
 ```
+
+合成データでの推論と必要人数（GHE issue 1〜3）も、同じバイタルの系列（`vitals-prepare`の出力）を使う。
+
+```bash
+uv run transyn syninf-tab-run ctgan --n 500 --reps 200       # 表データでの追試 → outputs/syninf_tabular/
+uv run transyn syninf-run var1 --n 100 --m 100 --reps 500 --epochs 0   # 合成データでの検定の偽陽性 → outputs/syninf/
+uv run transyn prognostic-run --ns 20 40 60 100 200 --reps 1000        # 予後予測の共変量 → outputs/prognostic/split0/
+uv run transyn --seed 0 smalln-run var1 --n 20                # 学習人数を絞った生成 → outputs/smalln/
+uv run transyn smalln-evaluate
+uv run transyn --seed 0 augment-run --ns 20 40 60 100 200 400 --reps 100   # 予測モデルの学習曲線 → outputs/augment/split0/
+uv run transyn showcase-evaluate                                          # 見本用データの段階 → outputs/showcase/
+uv run transyn showcase-release --level L3                                # 見本用データとチェック結果 → outputs/showcase/release_L3/
+uv run transyn attacks-targeted --n 20 --reps 200                         # 狙い撃ちのメンバーシップ推論 → outputs/attacks/
+uv run transyn dp-evaluate                                                # 差分プライバシー付きの見本の忠実度 → outputs/dpsynth/
+uv run transyn dp-audit --n 20 --reps 200                                 # 差分プライバシーの監査 → outputs/dpsynth/
+```
+
+心電図（GHE issue 17・18）は、PhysioNet の [ECG-ID Database](https://physionet.org/content/ecgiddb/1.0.0/) を `data/ecgid/raw/`、[MIT-BIH Arrhythmia Database](https://physionet.org/content/mitdb/1.0.0/) を `data/mitdb/raw/` に展開してから実行する（どちらも ODC-By 1.0）。WFDB形式の読み込みは numpy で実装しており、追加の依存は要らない。
+
+```bash
+uv run transyn ecg-linkage --dataset ecgid                     # それっぽさと本人との紐づき → outputs/ecglink/
+uv run transyn ecg-linkage --dataset mitdb --beats 200
+uv run transyn ecg-defense --dataset ecgid                     # 紐づきへの対策
+uv run transyn ecg-defense --dataset mitdb --beats 200
+```
+
+テストは`uv run pytest`で実行する。
 
 `data/`と`outputs/`はgit管理外。
 
