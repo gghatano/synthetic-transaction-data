@@ -368,7 +368,8 @@ def ecg_linkage(args: argparse.Namespace) -> None:
     ecglink.OUT.mkdir(parents=True, exist_ok=True)
     bs = ecglink.load(args.dataset)
     print(f"{args.dataset}: {len(bs.persons)} 人, {len(bs.beats)} 拍")
-    rows, per_person = ecglink.experiment(bs, seeds=tuple(range(args.seeds)), beats_per_person=args.beats)
+    rows, per_person = ecglink.experiment(bs, seeds=tuple(range(args.seeds)), beats_per_person=args.beats,
+                                          utility=args.dataset == "mitdb")
     df = pd.DataFrame(rows)
     df.to_csv(ecglink.OUT / f"{args.dataset}_rows.csv", index=False)
     per_person.to_csv(ecglink.OUT / f"{args.dataset}_per_person.csv", index=False)

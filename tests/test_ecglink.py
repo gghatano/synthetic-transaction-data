@@ -113,3 +113,17 @@ def test_実験は分け方と作り方ごとに紐づきとそれっぽさを�
     assert {(r["seed"], r["kind"]) for r in rows} == {(s, k) for s in (0, 1) for k in ("copy", "E1")}
     assert all({"auc", "mmd", "disc", "id_acc_real"} <= set(r) for r in rows)
     assert {"person", "member", "score", "outlier", "kind", "seed"} <= set(per_person.columns)
+
+
+def test_有用性は拍の種類ごとに合成して実データで評価する():
+    bs = toy_beats(n_persons=20, seed=5)
+    rng = np.random.default_rng(0)
+    sym = np.where(rng.random(len(bs.beats)) < 0.3, "V", "N")
+    beats = bs.beats.copy()
+    beats[sym == "V"] += 0.8 * np.sin(np.linspace(0, 3 * np.pi, beats.shape[1]))  # V の拍は形が違う
+    bs = ecglink.BeatSet(beats, bs.person, bs.part, bs.rr, sym)
+    mem, non = ecglink.split_persons(bs, seed=0)
+    real = ecglink.utility_tstr(bs, mem, non, kind="real", seed=0)
+    e1 = ecglink.utility_tstr(bs, mem, non, kind="E1", seed=0)
+    assert real > 0.9 and e1 > 0.9
+    assert np.isnan(ecglink.utility_tstr(bs, mem, non, kind="E0", seed=0))

@@ -239,6 +239,7 @@ def realism(syn: BeatSet, ref: BeatSet, k: int = 10, seed: int = 0) -> dict:
 # ---------------------------------------------------------------- データの読み込み
 
 BEAT_SYMBOLS = set("NLRBAaJSVrFejnE/fQ")  # MIT-BIH の拍の注釈
+PACED = {"102", "104", "107", "217"}  # ペースメーカーの記録（不整脈の研究では通常除く）
 
 
 def _beatset_rows(beats, kept, fs, person, part, symbols=None):
@@ -273,10 +274,12 @@ def load_mitdb(root: str | Path, lead: int = 0) -> BeatSet:
     """MIT-BIH Arrhythmia Database を読む。注釈の拍の位置を R 波とし、記録の前半を生成用（gen）、後半を登録用（enroll）
     にする。被験者は記録ごと（201 と 202 は同じ人だが、ここでは別に扱う）。"""
     root = Path(root)
-    names = (root / "RECORDS").read_text().split()
+    names = [n for n in (root / "RECORDS").read_text().split() if n not in PACED]
     rows = []
     for name in names:
         rec = ecg.read_record(root / name)
+        if rec.sig_names[lead] != "MLII" and rec.sig_names != [f"sig{i}" for i in range(len(rec.sig_names))]:
+            continue  # 誘導をそろえる（1 本目が MLII でない記録は使わない）
         ann = ecg.read_annotations(root / name, "atr")
         ann = ann[ann["symbol"].isin(BEAT_SYMBOLS)]
         x = rec.signal[:, lead]
@@ -303,7 +306,8 @@ def person_outlier_scores(bs: BeatSet, k: int = 10) -> pd.Series:
     return np.sqrt((z**2).sum(axis=1))
 
 
-def experiment(bs: BeatSet, seeds=(0, 1, 2, 3, 4), kinds=KINDS, beats_per_person: int = 24) -> tuple[list[dict], pd.DataFrame]:
+def experiment(bs: BeatSet, seeds=(0, 1, 2, 3, 4), kinds=KINDS, beats_per_person: int = 24,
+               utility: bool = False) -> tuple[list[dict], pd.DataFrame]:
     """メンバーの分け方（seeds）ごとに、合成の作り方ごとの紐づきとそれっぽさを測る。
     実データ同士の個人識別の正解率（メンバーの生成用の記録を、登録用の記録で識別）も並べる。"""
     rows, per_person = [], []
@@ -317,6 +321,8 @@ def experiment(bs: BeatSet, seeds=(0, 1, 2, 3, 4), kinds=KINDS, beats_per_person
         for kind in kinds:
             syn = generate(kind, train, n_persons=len(mem), beats_per_person=beats_per_person, seed=seed)
             r = {"seed": seed, "kind": kind, "id_acc_real": id_acc, **linkage_attack(syn, enroll, mem, model=model), **realism(syn, ref, seed=seed)}
+            if utility:
+                r["utility"] = utility_tstr(bs, mem, non, kind="real" if kind == "copy" else kind, seed=seed)
             rows.append(r)
             sc = linkage_attack.last_scores
             per_person.append(pd.DataFrame({"person": sc.index, "score": sc.to_numpy(), "member": np.isin(sc.index, mem),
@@ -333,3 +339,34 @@ def load(dataset: str) -> BeatSet:
     bs = load_ecgid(DATA["ecgid"]) if dataset == "ecgid" else load_mitdb(DATA["mitdb"])
     c = pd.DataFrame({"p": bs.person, "part": bs.part}).groupby(["p", "part"]).size().unstack(fill_value=0)
     return bs.select(person=c.index[(c.get("enroll", 0) > 0) & (c.get("gen", 0) > 0)])
+
+
+def utility_tstr(bs: BeatSet, members, nonmembers, kind: str, seed: int, classes=("N", "V"), max_beats: int = 100) -> float:
+    """有用性: 拍の種類（N と V）ごとにメンバーの生成用の拍から合成し、合成で学習した分類器を非メンバーの実データで
+    評価した AUROC。kind="real" はメンバーの実データで学習した基準。E0 は種類を作り分けられないので NaN。"""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    if kind == "E0":
+        return float("nan")
+    xs, ys = [], []
+    for label, c in enumerate(classes):
+        tr = bs.select(person=members, part="gen", symbol=c)
+        counts = pd.Series(tr.person).value_counts()
+        tr = tr.select(person=counts.index[counts >= 3])
+        if not len(tr.beats):
+            return float("nan")
+        if kind == "real":
+            xs.append(tr.beats)
+        else:
+            per = int(min(max_beats, counts[counts >= 3].median()))
+            xs.append(generate(kind, tr, n_persons=len(tr.persons), beats_per_person=per, seed=seed).beats)
+        ys.append(np.full(len(xs[-1]), label))
+    te = bs.select(person=nonmembers, symbol=list(classes))
+    y_te = (te.symbol == classes[1]).astype(int)
+    if y_te.min() == y_te.max():
+        return float("nan")
+    model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=3000, C=0.1)).fit(np.vstack(xs), np.concatenate(ys))
+    return float(roc_auc_score(y_te, model.predict_proba(te.beats)[:, 1]))
