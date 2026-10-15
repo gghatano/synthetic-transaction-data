@@ -35,6 +35,7 @@ ICU のバイタル時系列（eICU Demo, issue #15）:
 予測モデルの学習で合成データは実データ何人分か（GHE issue 8）:
 
     uv run transyn --seed 0 augment-run --ns 20 40 60 100 200 400 --reps 100   # outputs/augment/split0/results.md
+    uv run transyn --seed 0 augment-regcheck --ns 20 40 60 100 200 400 --reps 100   # 正則化の対照
 """
 
 from __future__ import annotations
@@ -272,6 +273,17 @@ def augment_run(args: argparse.Namespace) -> None:
     print(md)
 
 
+def augment_regcheck(args: argparse.Namespace) -> None:
+    out = augment.OUT / f"split{args.seed}"
+    out.mkdir(parents=True, exist_ok=True)
+    reps = augment.regularization_control(args.ns, args.reps, seed=args.seed)
+    reps.to_csv(out / "regcheck_reps.csv.gz", index=False)
+    table = reps.groupby(["task", "method", "n"], sort=False)["auroc"].mean().unstack("n")
+    md = "## 実データのみ・正則化の強さ違いの AUROC\n\n" + table.to_markdown(floatfmt=".3f")
+    (out / "regcheck.md").write_text(md + "\n")
+    print(md)
+
+
 def build_site(args: argparse.Namespace) -> None:
     from . import site
 
@@ -366,6 +378,11 @@ def main() -> None:
     p.add_argument("--par-epochs", type=int, default=200)
     p.add_argument("--no-par", action="store_true", help="外部データの PAR による合成を省く")
     p.set_defaults(func=augment_run)
+
+    p = sub.add_parser("augment-regcheck", help="実データのみで正則化の強さを変えた対照")
+    p.add_argument("--ns", type=int, nargs="+", required=True)
+    p.add_argument("--reps", type=int, required=True)
+    p.set_defaults(func=augment_regcheck)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
     p.add_argument("--out", type=Path, default=Path("_site"))

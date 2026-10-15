@@ -61,3 +61,12 @@ def test_1回の試行は全手法と全課題のAUROCを返す():
     assert methods == {"real", "jitter", "var1-same", "var1-ext", "ext-real"}
     assert {r["task"] for r in rows} == set(augment.LABELS)
     assert all(np.isnan(r["auroc"]) or 0 <= r["auroc"] <= 1 for r in rows)
+
+
+def test_正則化の対照は実データのみで強さを変えたAUROCを返す():
+    pool = make_vitals(160, seed=3)
+    data = augment.Data.of(pool)
+    rows = augment.regularization_rep(data, np.arange(60, 160), np.arange(60), n=40, cs=(0.01, 0.1),
+                                      rng=np.random.default_rng(0), seed=0)
+    assert {r["method"] for r in rows} == {"real-C0.01", "real-C0.1"}
+    assert {r["task"] for r in rows} == set(augment.LABELS)

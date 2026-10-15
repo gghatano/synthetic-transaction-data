@@ -80,7 +80,7 @@ def real_equivalent_n(value: float, ns: list[int], auc: list[float]) -> float:
     return float(np.exp(np.interp(value, auc, np.log(ns))))
 
 
-def _fit_auroc(x: np.ndarray, y: np.ndarray, x_te: np.ndarray, y_te: np.ndarray, seed: int) -> float:
+def _fit_auroc(x: np.ndarray, y: np.ndarray, x_te: np.ndarray, y_te: np.ndarray, seed: int, c: float = 0.1) -> float:
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import roc_auc_score
     from sklearn.pipeline import make_pipeline
@@ -88,7 +88,7 @@ def _fit_auroc(x: np.ndarray, y: np.ndarray, x_te: np.ndarray, y_te: np.ndarray,
 
     if len(np.unique(y)) < 2:
         return float("nan")
-    model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000, C=0.1, random_state=seed))
+    model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000, C=c, random_state=seed))
     model.fit(x, y)
     return float(roc_auc_score(y_te, model.predict_proba(x_te)[:, 1]))
 
@@ -124,6 +124,34 @@ def run_rep(pool: pd.DataFrame, data: Data, train_idx: np.ndarray, test_idx: np.
             rows.append({"method": name, "task": task, "n": n, "positives": int(sel.y[task].sum()),
                          "auroc": _fit_auroc(x, y, test.feats, test.y[task], seed)})
     return rows
+
+
+def regularization_rep(data: Data, train_idx: np.ndarray, test_idx: np.ndarray, n: int, cs: tuple[float, ...],
+                       rng: np.random.Generator, seed: int) -> list[dict]:
+    """対照: 実データ n 人だけで、ロジスティック回帰の正則化の強さ（C）を変えて学習する。
+    同じ n 人からの合成データで性能が上がる場合、それが正則化と同じ働きかを見分けるため。"""
+    sel, test = data.take(rng.choice(train_idx, size=n, replace=False)), data.take(test_idx)
+    return [{"method": f"real-C{c:g}", "task": task, "n": n, "positives": int(sel.y[task].sum()),
+             "auroc": _fit_auroc(sel.feats, sel.y[task], test.feats, test.y[task], seed, c)}
+            for task in LABELS for c in cs]
+
+
+def regularization_control(ns: list[int], reps: int, seed: int = 0, n_test: int = 300,
+                           cs: tuple[float, ...] = (0.003, 0.01, 0.03, 0.1, 1.0)) -> pd.DataFrame:
+    """experiment と同じ病院の分け方・評価用で、実データのみ・正則化の強さ違いの学習曲線を測る。"""
+    pool = syninf.load_pool()
+    ids = pool["seq_id"].drop_duplicates().to_numpy()
+    hosp = prognostic._hospitals(ids)
+    ext_h, _ = prognostic.split_hospitals(hosp, 0.5, seed)
+    tgt = Data.of(pool[~pool["seq_id"].isin(ids[hosp.isin(ext_h).to_numpy()])])
+    rng = np.random.default_rng(seed)
+    order = rng.permutation(len(tgt.ids))
+    test_idx, train_idx = order[:n_test], order[n_test:]
+    rows = []
+    for n in ns:
+        for rep in range(reps):
+            rows += [{**r, "rep": rep} for r in regularization_rep(tgt, train_idx, test_idx, n, cs, rng, seed * 100_000 + n * 1000 + rep)]
+    return pd.DataFrame(rows)
 
 
 def experiment(ns: list[int], reps: int, seed: int = 0, n_test: int = 300, par_epochs: int = 200,
