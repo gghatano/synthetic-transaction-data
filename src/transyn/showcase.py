@@ -232,14 +232,16 @@ def relation_stats(df: pd.DataFrame) -> dict[str, float]:
     return {"HRDiffDied": float(diff), "AgeHRCorr": float(np.corrcoef(m["age"], m["hr"])[0, 1])}
 
 
-def evaluate_levels(seeds: tuple[int, ...] = (0, 1, 2), tail_clip: float = 0.005) -> pd.DataFrame:
-    """段階ごとに、既定（学習データの最小・最大で切り詰め）と、裾を tail_clip で切り詰めた版（-clip）を評価する。"""
+def evaluate_levels(seeds: tuple[int, ...] = (0, 1, 2), tail_clip: float = 0.005, trim: float = 0.1) -> pd.DataFrame:
+    """段階ごとに、既定（学習データの最小・最大で切り詰め）、裾を tail_clip で切り詰めた版（-clip）、
+    さらに L3・L4 で外れ具合の上位 trim の被験者を除いた版（-clip-trim）を評価する。"""
     a, b, c = (vitals.read_split(k) for k in "ABC")
     rows = [{"level": "real-C", "seed": 0, **vitals.fidelity(a, c), **relation_stats(c), "TSTR_AUROC": vitals.utility(c, b)}]
-    variants = [(lv, None) for lv in LEVELS] + [(f"{lv}-clip", tail_clip) for lv in LEVELS if lv != "L0"]
-    for name, clip in variants:
+    variants = [(lv, lv, None, None) for lv in LEVELS] + [(f"{lv}-clip", lv, tail_clip, None) for lv in LEVELS if lv != "L0"]
+    variants += [(f"{lv}-clip-trim", lv, tail_clip, trim) for lv in ("L3", "L4")]
+    for name, level, clip, tr in variants:
         for seed in seeds:
-            gen = generate(name.removesuffix("-clip"), a, n_seqs=a["seq_id"].nunique(), seed=seed, tail_clip=clip)
+            gen = generate(level, a, n_seqs=a["seq_id"].nunique(), seed=seed, tail_clip=clip, trim=tr)
             rows.append({
                 "level": name, "seed": seed,
                 **vitals.fidelity(c, gen, seed), **relation_stats(gen),
