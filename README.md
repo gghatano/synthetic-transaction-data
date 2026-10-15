@@ -25,6 +25,8 @@
 - 見本用データの忠実度の段階と公開前チェック: [docs/showcase-levels.md](docs/showcase-levels.md)（GHE issue 9）
 - 見本用データへのプライバシ攻撃: [docs/attacks.md](docs/attacks.md)（GHE issue 13）
 - 見本用データの開示リスクへの対策と保証（差分プライバシー・外れた被験者の除外）: [docs/dp-showcase.md](docs/dp-showcase.md)（GHE issue 14）
+- 心電図の合成データのそれっぽさと本人との紐づき: [docs/ecg-linkage.md](docs/ecg-linkage.md)（GHE issue 17）
+- 心電図の合成データの本人との紐づきへの対策: [docs/ecg-defense.md](docs/ecg-defense.md)（GHE issue 18）
 
 ## セットアップ
 
@@ -79,6 +81,15 @@ uv run transyn showcase-release --level L3                                # 見�
 uv run transyn attacks-targeted --n 20 --reps 200                         # 狙い撃ちのメンバーシップ推論 → outputs/attacks/
 uv run transyn dp-evaluate                                                # 差分プライバシー付きの見本の忠実度 → outputs/dpsynth/
 uv run transyn dp-audit --n 20 --reps 200                                 # 差分プライバシーの監査 → outputs/dpsynth/
+```
+
+心電図（GHE issue 17・18）は、PhysioNet の [ECG-ID Database](https://physionet.org/content/ecgiddb/1.0.0/) を `data/ecgid/raw/`、[MIT-BIH Arrhythmia Database](https://physionet.org/content/mitdb/1.0.0/) を `data/mitdb/raw/` に展開してから実行する（どちらも ODC-By 1.0）。WFDB形式の読み込みは numpy で実装しており、追加の依存は要らない。
+
+```bash
+uv run transyn ecg-linkage --dataset ecgid                     # それっぽさと本人との紐づき → outputs/ecglink/
+uv run transyn ecg-linkage --dataset mitdb --beats 200
+uv run transyn ecg-defense --dataset ecgid                     # 紐づきへの対策
+uv run transyn ecg-defense --dataset mitdb --beats 200
 ```
 
 テストは`uv run pytest`で実行する。

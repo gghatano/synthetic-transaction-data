@@ -63,7 +63,7 @@ uv run transyn ecg-linkage --dataset ecgid
 uv run transyn ecg-linkage --dataset mitdb --beats 200
 ```
 
-所要時間（CPU）は、ECG-IDが約5分、MIT-BIHが約30分。
+所要時間（CPU）は、ECG-IDが約5分、MIT-BIHが約10分。
 
 ## 結果
 
