@@ -16,7 +16,7 @@
 - 数理モデルによるシミュレーションデータ生成の調査: [docs/survey-simulation.md](docs/survey-simulation.md)（issue #18）
 - DGANを適切な更新回数で再実験した結果: [docs/dgan-rerun.md](docs/dgan-rerun.md)（issue #17）
 
-2026-10-14以降のissueは社内GHE（https://github.wing.sysrdc.com/dsec/synthetic-transaction-data ）にある。上の#番号は公開リポジトリのもので、番号が重なるので「GHE issue 1」のように書き分ける。
+2026-10-14以降のissueは社内のリポジトリ（GHE）で管理している。上の#番号はこの公開リポジトリのもので、番号が重なるので、社内のissueは「GHE issue 1」のように書き分ける。
 
 - 合成データで水増しして検定すると何が起きるか: [docs/synthetic-inference.md](docs/synthetic-inference.md)（GHE issue 1）
 - 外部データの予後予測を共変量にして必要な被験者数を減らす: [docs/prognostic-covariate.md](docs/prognostic-covariate.md)（GHE issue 2）
