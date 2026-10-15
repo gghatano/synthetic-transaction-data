@@ -11,7 +11,7 @@ summary: 公開の心電図（ECG-ID 89人、MIT-BIH 43人）で、作り方の�
 
 # 心電図の合成データのそれっぽさと本人との紐づき
 
-GHE issue 17の成果物。心電図は生体認証に使われ、個人識別の正解率は90%超と報告されている。一方、合成心電図を個人識別器で照合して攻撃した査読論文は、調べた範囲（2026-10-15）では見つからなかった。心電図の合成データを公開する前に、「それっぽさ（本物らしさ）」「本人との紐づき」「有用性」を同じ物差しで測った。
+GHE issue 17の成果物。心電図は生体認証に使われ、個人識別の正解率は90%超と報告されている。心電図の合成の研究は多いが（SSSD-ECG、DiffuSETS、Pulse2Pulse など）、合成した心電図の匿名性を評価した研究は少ない。2023年のレビュー（Monachino et al., Computers in Biology and Medicine 167:107655）によれば、生成モデルで心電図を匿名化した研究のうち匿名性を評価していたのは3本で、2本はメンバーシップ推論、1本は生体認証の照合器（同じ人の記録かを判定する）で評価していた。条件付きGANで本人らしさを消す非識別化（ECG Biosignal Deidentification Using Conditional GANs, IEEE EMBC 2022）もある（評価の方法は要原典確認）。一方、作り方の違う合成心電図を、別の記録で登録した個人識別器による照合攻撃で、本物らしさ・有用性と並べて比べた報告は、調べた範囲（2026-10-16）では見つからなかった。心電図の合成データを公開する前に、「それっぽさ（本物らしさ）」「本人との紐づき」「有用性」を同じ物差しで測った。
 
 ## 要点
 
@@ -128,3 +128,13 @@ MIT-BIHのεの下限は、メンバーが約21人なので信頼区間の幅か
 - ECG-IDはI誘導、MIT-BIHはMLII誘導の1本だけ。多誘導の誘導間の関係は扱っていない
 - MIT-BIHの201と202は同じ人の記録だが、別の人として扱った
 - 有用性の評価は拍の分類（N・V）の1課題だけ
+
+## 文献
+
+- Monachino et al. *Deep Generative Models: The winning key for large and easily accessible ECG datasets?* Computers in Biology and Medicine 167:107655, 2023. https://doi.org/10.1016/j.compbiomed.2023.107655
+- *ECG Biosignal Deidentification Using Conditional Generative Adversarial Networks*. IEEE EMBC 2022. https://doi.org/10.1109/embc48229.2022.9872015
+- Delaney, Brophy, Ward. *Synthesis of Realistic ECG using Generative Adversarial Networks*. 2019. https://arxiv.org/abs/1909.09150 。簡単なメンバーシップ推論で評価
+- Thambawita et al. *DeepFake electrocardiograms using generative adversarial networks are the beginning of the end for privacy issues in medicine*. Scientific Reports 2021. https://www.nature.com/articles/s41598-021-01295-2
+- Alcaraz, Strodthoff. *Diffusion-based conditional ECG generation with structured state space models* (SSSD-ECG). Computers in Biology and Medicine 2023. https://arxiv.org/abs/2301.08227
+- *High-Fidelity Synthetic ECG Generation via Mel-Spectrogram Informed Diffusion Training* (MIDT-ECG). 2025. https://arxiv.org/abs/2510.05492 。メンバーシップ推論と最近傍の指標で評価（個人識別器による照合はしていない）
+- McSharry et al. *A dynamical model for generating synthetic electrocardiogram signals* (ECGSYN). IEEE TBME 50(3), 2003
