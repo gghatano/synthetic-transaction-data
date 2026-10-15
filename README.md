@@ -23,6 +23,8 @@
 - 学習人数が少ないときの生成モデル: [docs/small-n-generators.md](docs/small-n-generators.md)（GHE issue 3）
 - 予測モデルの学習で合成データは実データ何人分になるか: [docs/augmentation.md](docs/augmentation.md)（GHE issue 8）
 - 見本用データの忠実度の段階と公開前チェック: [docs/showcase-levels.md](docs/showcase-levels.md)（GHE issue 9）
+- 見本用データへのプライバシ攻撃: [docs/attacks.md](docs/attacks.md)（GHE issue 13）
+- 見本用データの開示リスクへの対策と保証（差分プライバシー・外れた被験者の除外）: [docs/dp-showcase.md](docs/dp-showcase.md)（GHE issue 14）
 
 ## セットアップ
 
@@ -74,6 +76,9 @@ uv run transyn smalln-evaluate
 uv run transyn --seed 0 augment-run --ns 20 40 60 100 200 400 --reps 100   # 予測モデルの学習曲線 → outputs/augment/split0/
 uv run transyn showcase-evaluate                                          # 見本用データの段階 → outputs/showcase/
 uv run transyn showcase-release --level L3                                # 見本用データとチェック結果 → outputs/showcase/release_L3/
+uv run transyn attacks-targeted --n 20 --reps 200                         # 狙い撃ちのメンバーシップ推論 → outputs/attacks/
+uv run transyn dp-evaluate                                                # 差分プライバシー付きの見本の忠実度 → outputs/dpsynth/
+uv run transyn dp-audit --n 20 --reps 200                                 # 差分プライバシーの監査 → outputs/dpsynth/
 ```
 
 テストは`uv run pytest`で実行する。
