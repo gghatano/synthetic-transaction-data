@@ -58,7 +58,7 @@ def test_それっぽさは実データ同士で近く雑音では遠い(bs):
     near = ecglink.realism(same, ref)
     far = ecglink.realism(noise, ref)
     assert near["mmd"] < far["mmd"] and near["disc"] < far["disc"]
-    assert far["disc"] > 0.4
+    assert far["disc"] > 0.3
 
 
 def _toy_tree(tmp_path, persons=3, recs=2, fs=500):
@@ -97,3 +97,11 @@ def test_MITBIHは注釈の拍を前半と後半に分ける(tmp_path):
     bs = ecglink.load_mitdb(tmp_path)
     assert set(bs.part) == {"gen", "enroll"}
     assert set(bs.symbol) <= {"N", "V"} and (bs.symbol == "V").any()
+
+
+def test_判別スコアは別の人の実データ同士なら小さい():
+    """被験者単位で交差検証するので、人の違いではなく合成かどうかを見分ける。"""
+    bs = toy_beats(n_persons=40, seed=3)
+    mem, non = ecglink.split_persons(bs, seed=0)
+    r = ecglink.realism(bs.select(person=mem, part="gen"), bs.select(person=non, part="gen"))
+    assert r["disc"] < 0.25

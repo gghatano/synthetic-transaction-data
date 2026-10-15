@@ -213,15 +213,18 @@ def _mmd(x: np.ndarray, y: np.ndarray, rng: np.random.Generator, m: int = 800) -
 def realism(syn: BeatSet, ref: BeatSet, k: int = 10, seed: int = 0) -> dict:
     from sklearn.decomposition import PCA
     from sklearn.ensemble import HistGradientBoostingClassifier
-    from sklearn.model_selection import cross_val_score
+    from sklearn.model_selection import GroupKFold, cross_val_score
 
     rng = np.random.default_rng(seed)
     pca = PCA(n_components=k, random_state=0).fit(ref.beats)
     fs, fr = pca.transform(syn.beats), pca.transform(ref.beats)
     n = min(len(fs), len(fr), 2000)
-    x = np.vstack([fs[rng.choice(len(fs), n, replace=False)], fr[rng.choice(len(fr), n, replace=False)]])
+    i_s, i_r = rng.choice(len(fs), n, replace=False), rng.choice(len(fr), n, replace=False)
+    x = np.vstack([fs[i_s], fr[i_r]])
     y = np.r_[np.zeros(n), np.ones(n)]
-    acc = cross_val_score(HistGradientBoostingClassifier(random_state=seed), x, y, cv=5).mean()
+    # 被験者単位で分ける（同じ人の拍が学習と検証の両方に入ると、人の違いを見分けてしまう）
+    groups = np.r_[["s:" + p for p in syn.person[i_s]], ["r:" + p for p in ref.person[i_r]]]
+    acc = cross_val_score(HistGradientBoostingClassifier(random_state=seed), x, y, cv=GroupKFold(5), groups=groups).mean()
     ms = np.array([fs[syn.person == p].mean(0) for p in syn.persons])
     mr = np.array([fr[ref.person == p].mean(0) for p in ref.persons])
     return {
@@ -253,7 +256,7 @@ def load_ecgid(root: str | Path, signal_index: int = 1) -> BeatSet:
     信号は 2 本目（フィルタ済みの I 誘導）を使う。R 波は detect_r_peaks で検出する。"""
     root = Path(root)
     rows = []
-    for hea in sorted(root.rglob("rec_*.hea")):
+    for hea in sorted(root.rglob("Person_*/rec_*.hea")):  # .old（古い版）は読まない
         rec = ecg.read_record(hea.with_suffix(""))
         x = rec.signal[:, min(signal_index, rec.signal.shape[1] - 1)]
         peaks = ecg.detect_r_peaks(x, rec.fs)
