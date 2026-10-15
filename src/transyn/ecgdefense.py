@@ -95,10 +95,35 @@ def _dp_e2(train: ecglink.BeatSet, n_persons: int, bpp: int, rng: np.random.Gene
     return beats, rrs
 
 
+def _microaggregate(means: np.ndarray, k: int) -> np.ndarray:
+    """被験者の平均の波形を、近い k 人ずつの組に分けて組の平均に置き換える（最初の主成分の順に並べて k 人ずつ）。
+    最後の組が k 人に満たなければ、1 つ前の組に入れる。"""
+    if k <= 1:
+        return means.copy()
+    order = np.argsort(means[:, 0])
+    out = means.copy()
+    groups = [order[i : i + k] for i in range(0, len(order), k)]
+    if len(groups) > 1 and len(groups[-1]) < k:
+        groups[-2] = np.r_[groups[-2], groups[-1]]
+        groups = groups[:-1]
+    for g in groups:
+        out[g] = means[g].mean(0)
+    return out
+
+
 def generate(kind: str, train: ecglink.BeatSet, n_persons: int, beats_per_person: int, seed: int, **kw) -> ecglink.BeatSet:
     rng = np.random.default_rng(seed)
     if kind == "E2-trim":
         return ecglink.generate("E2", trim_persons(train, kw.get("frac", 0.2)), n_persons, beats_per_person, seed)
+    if kind == "E2-pc":
+        return ecglink.generate("E2", train, n_persons, beats_per_person, seed, fit_=ecglink.fit(train, k=kw.get("n_components", 5)))
+    if kind == "E2-agg":
+        f = ecglink.fit(train)
+        f.means = _microaggregate(f.means, int(kw.get("k", 3)))
+        from sklearn.covariance import LedoitWolf
+
+        f.between = LedoitWolf().fit(f.means).covariance_
+        return ecglink.generate("E2", train, n_persons, beats_per_person, seed, fit_=f)
     if kind == "E3-noise":
         syn = ecglink.generate("E3", train, n_persons, beats_per_person, seed)
         syn.beats = syn.beats + rng.normal(0, kw.get("sigma", 0.1), syn.beats.shape)
@@ -133,6 +158,8 @@ CONFIGS = (
     + [(f"E3-noise-{s:g}", "E3-noise", {"sigma": s}) for s in (0.05, 0.1, 0.2)]
     + [(f"E2-trim-{f:g}", "E2-trim", {"frac": f}) for f in (0.1, 0.2)]
     + [(f"E2-dp-eps{e:g}", "E2-dp", {"epsilon": e}) for e in (1.0, 4.0, 8.0, float("inf"))]
+    + [(f"E2-agg-k{k}", "E2-agg", {"k": k}) for k in (3, 5)]
+    + [(f"E2-pc{c}", "E2-pc", {"n_components": c}) for c in (3, 5)]
 )
 
 

@@ -55,3 +55,16 @@ def test_対策の実験は設定ごとに紐づきとそれっぽさを返す()
     rows = ecgdefense.experiment(bs, seeds=(0,), configs=configs, beats_per_person=20)
     assert {r["config"] for r in rows} == {"kanon-k2", "dp-inf"}
     assert all({"auc", "mmd", "disc"} <= set(r) for r in rows)
+
+
+def test_まとめてから分布を作るとkが全員なら被験者間の違いがほぼ消える(setup):
+    _, mem, _, train = setup
+    k1 = ecgdefense.generate("E2-agg", train, len(mem), 50, seed=0, k=1)
+    kall = ecgdefense.generate("E2-agg", train, len(mem), 50, seed=0, k=len(mem))
+    assert _person_means(kall).std(0).mean() < 0.3 * _person_means(k1).std(0).mean()
+
+
+def test_主成分を減らした分布でも形はそろう(setup):
+    _, mem, _, train = setup
+    syn = ecgdefense.generate("E2-pc", train, len(mem), 20, seed=0, n_components=5)
+    assert syn.beats.shape[1] == ecg.BEAT_LEN and len(syn.persons) == len(mem)
