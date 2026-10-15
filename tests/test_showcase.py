@@ -85,3 +85,10 @@ def test_裾を切り詰めると実データの極値は再現されない(trai
     for v in ("heartrate", "sao2", "respiration"):
         lo, hi = train[v].quantile([0.005, 0.995])
         assert gen[v].min() >= lo - 1e-9 and gen[v].max() <= hi + 1e-9
+
+
+def test_構造チェックは列の並びを問わない(train):
+    gen = showcase.generate("L3", train, n_seqs=10, seed=0)
+    reordered = train[["t", "seq_id", *vitals.VARS, "age", "died"]]
+    assert showcase.structure_checks(gen, reordered)["columns"]
+    assert not showcase.structure_checks(gen.drop(columns="age"), reordered)["columns"]

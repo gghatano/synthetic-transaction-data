@@ -194,11 +194,11 @@ def disclosure_checks(gen: pd.DataFrame, real: pd.DataFrame, holdout: pd.DataFra
 
 
 def structure_checks(gen: pd.DataFrame, real: pd.DataFrame) -> dict[str, bool]:
-    """構造: 列、系列ごとの時点数と時刻番号、生理的にありうる範囲、欠測なし。"""
+    """構造: 列（並びは問わない）、系列ごとの時点数と時刻番号、生理的にありうる範囲、欠測なし。"""
     sizes = gen.groupby("seq_id")["t"].agg(["size", "min", "max"])
     in_range = all(gen[v].between(*vitals.BOUNDS[v]).all() for v in vitals.VARS)
     return {
-        "columns": list(gen.columns) == list(real.columns),
+        "columns": set(gen.columns) == set(real.columns),
         "steps": bool(((sizes["size"] == vitals.STEPS) & (sizes["min"] == 0) & (sizes["max"] == vitals.STEPS - 1)).all()),
         "ranges": bool(in_range),
         "no_missing": bool(gen[vitals.VARS].notna().all().all()),
