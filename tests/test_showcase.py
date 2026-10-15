@@ -92,3 +92,13 @@ def test_構造チェックは列の並びを問わない(train):
     reordered = train[["t", "seq_id", *vitals.VARS, "age", "died"]]
     assert showcase.structure_checks(gen, reordered)["columns"]
     assert not showcase.structure_checks(gen.drop(columns="age"), reordered)["columns"]
+
+
+def test_公開の範囲の端と同じ極値は再現として数えない(train):
+    edge = train.copy()
+    edge.loc[edge["seq_id"] == 0, "respiration"] = vitals.BOUNDS["respiration"][1]  # 1 人だけが上限の値をとる
+    # 合成側は実データの値からずらし、上限の値だけが一致するようにする
+    gen = train.assign(heartrate=train["heartrate"] + 0.123, sao2=train["sao2"] - 0.0123, respiration=train["respiration"] + 0.0123)
+    gen.loc[gen["seq_id"] == 5, "respiration"] = vitals.BOUNDS["respiration"][1]
+    other = showcase.disclosure_checks(gen, edge, holdout=edge)
+    assert other["extreme_values_reproduced"] == 0

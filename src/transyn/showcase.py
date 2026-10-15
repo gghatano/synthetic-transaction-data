@@ -182,7 +182,9 @@ def disclosure_checks(gen: pd.DataFrame, real: pd.DataFrame, holdout: pd.DataFra
         r = np.round(real[v].to_numpy(), 6)
         for x in (r.min(), r.max()):
             holders = real.loc[r == x, "seq_id"].nunique()
-            extremes += int(holders < min_group and x in vals)
+            # 公開の生理的な範囲の端（vitals.BOUNDS）と同じ値は、切り詰めで誰にでも出るので数えない
+            at_bound = x in vitals.BOUNDS[v]
+            extremes += int(holders < min_group and x in vals and not at_bound)
     groups = vitals.static_of(real)["died"].value_counts()
     small = [f"died={g}" for g, c in groups.items() if c < min_group]
     return {
