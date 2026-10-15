@@ -41,6 +41,11 @@ ICU のバイタル時系列（eICU Demo, issue #15）:
 
     uv run transyn showcase-evaluate               # outputs/showcase/results.md
     uv run transyn showcase-release --level L3     # outputs/showcase/release_L3/
+
+合成データへのプライバシ攻撃（GHE issue 13）:
+
+    uv run transyn attacks-targeted --n 20 --reps 100   # outputs/attacks/targeted_n20.csv
+    uv run transyn attacks-population                    # outputs/attacks/population.csv
 """
 
 from __future__ import annotations
@@ -53,7 +58,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import augment, data, ehr, metrics, models, prognostic, seqgpt, showcase, smalln, syninf, syninf_tabular, vitals
+from . import attacks, augment, data, ehr, metrics, models, prognostic, seqgpt, showcase, smalln, syninf, syninf_tabular, vitals
 
 # EHR では数値列のない系列向けの GPT 型モデルも使える
 EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
@@ -320,6 +325,20 @@ def showcase_release(args: argparse.Namespace) -> None:
     print(json.dumps(checks, ensure_ascii=False, indent=2, default=float))
 
 
+def attacks_targeted(args: argparse.Namespace) -> None:
+    attacks.OUT.mkdir(parents=True, exist_ok=True)
+    df = attacks.experiment_targeted(args.n, args.reps, seed=args.seed)
+    df.to_csv(attacks.OUT / f"targeted_n{args.n}.csv", index=False)
+    print(df.groupby(["level", "kind"])[["auc", "eps_lb"]].agg(["mean", "max"]).to_markdown(floatfmt=".3f"))
+
+
+def attacks_population(args: argparse.Namespace) -> None:
+    attacks.OUT.mkdir(parents=True, exist_ok=True)
+    df = attacks.experiment_population()
+    df.to_csv(attacks.OUT / "population.csv", index=False)
+    print(df.drop(columns="seed").groupby(["n", "level"]).mean().to_markdown(floatfmt=".3f"))
+
+
 def build_site(args: argparse.Namespace) -> None:
     from . import site
 
@@ -427,6 +446,14 @@ def main() -> None:
     p.add_argument("--n-seqs", type=int, default=50, help="見本として出す系列数")
     p.add_argument("--tail-clip", type=float, default=0.005, help="値を学習データのこの分位点で切り詰める（実在の極値を出さない）")
     p.set_defaults(func=showcase_release)
+
+    p = sub.add_parser("attacks-targeted", help="狙い撃ちのメンバーシップ推論（段階ごと、標的10人）")
+    p.add_argument("--n", type=int, required=True, help="学習人数")
+    p.add_argument("--reps", type=int, required=True, help="標的ごとの試行数（半分は標的を入れる）")
+    p.set_defaults(func=attacks_targeted)
+
+    p = sub.add_parser("attacks-population", help="属性推論と部分系列による所属推定（段階ごと）")
+    p.set_defaults(func=attacks_population)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
     p.add_argument("--out", type=Path, default=Path("_site"))
