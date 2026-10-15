@@ -46,6 +46,11 @@ ICU のバイタル時系列（eICU Demo, issue #15）:
 
     uv run transyn attacks-targeted --n 20 --reps 100   # outputs/attacks/targeted_n20.csv
     uv run transyn attacks-population                    # outputs/attacks/population.csv
+
+差分プライバシー付きの見本用データと監査（GHE issue 14）:
+
+    uv run transyn dp-evaluate                     # outputs/dpsynth/evaluate.csv
+    uv run transyn dp-audit --n 20 --reps 200      # outputs/dpsynth/audit_n20.csv
 """
 
 from __future__ import annotations
@@ -58,7 +63,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import attacks, augment, data, ehr, metrics, models, prognostic, seqgpt, showcase, smalln, syninf, syninf_tabular, vitals
+from . import attacks, augment, data, dpsynth, ehr, metrics, models, prognostic, seqgpt, showcase, smalln, syninf, syninf_tabular, vitals
 
 # EHR では数値列のない系列向けの GPT 型モデルも使える
 EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
@@ -339,6 +344,21 @@ def attacks_population(args: argparse.Namespace) -> None:
     print(df.drop(columns="seed").groupby(["n", "level"]).mean().to_markdown(floatfmt=".3f"))
 
 
+def dp_evaluate(args: argparse.Namespace) -> None:
+    dpsynth.OUT.mkdir(parents=True, exist_ok=True)
+    df = dpsynth.evaluate()
+    df.to_csv(dpsynth.OUT / "evaluate.csv", index=False)
+    print(df.drop(columns="seed").groupby(["level", "n", "epsilon"]).mean().to_markdown(floatfmt=".3f"))
+
+
+def dp_audit(args: argparse.Namespace) -> None:
+    dpsynth.OUT.mkdir(parents=True, exist_ok=True)
+    pool = pd.concat([vitals.read_split("A"), vitals.read_split("B")], ignore_index=True)
+    df = pd.DataFrame(dpsynth.audit(pool, dpsynth.EPSILONS, n=args.n, k=5, reps=args.reps, seed=args.seed))
+    df.to_csv(dpsynth.OUT / f"audit_n{args.n}.csv", index=False)
+    print(df.groupby(["level", "epsilon", "kind"])[["auc", "eps_lb"]].agg(["mean", "max"]).to_markdown(floatfmt=".3f"))
+
+
 def build_site(args: argparse.Namespace) -> None:
     from . import site
 
@@ -454,6 +474,14 @@ def main() -> None:
 
     p = sub.add_parser("attacks-population", help="属性推論と部分系列による所属推定（段階ごと）")
     p.set_defaults(func=attacks_population)
+
+    p = sub.add_parser("dp-evaluate", help="DP 付きの見本用データの、ε ごとの忠実度")
+    p.set_defaults(func=dp_evaluate)
+
+    p = sub.add_parser("dp-audit", help="DP 付きの見本用データの、狙い撃ちの攻撃による監査")
+    p.add_argument("--n", type=int, required=True)
+    p.add_argument("--reps", type=int, required=True)
+    p.set_defaults(func=dp_audit)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
     p.add_argument("--out", type=Path, default=Path("_site"))
