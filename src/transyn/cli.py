@@ -36,6 +36,11 @@ ICU のバイタル時系列（eICU Demo, issue #15）:
 
     uv run transyn --seed 0 augment-run --ns 20 40 60 100 200 400 --reps 100   # outputs/augment/split0/results.md
     uv run transyn --seed 0 augment-regcheck --ns 20 40 60 100 200 400 --reps 100   # 正則化の対照
+
+見本用データの忠実度の段階と公開前チェック（GHE issue 9）:
+
+    uv run transyn showcase-evaluate               # outputs/showcase/results.md
+    uv run transyn showcase-release --level L3     # outputs/showcase/release_L3/
 """
 
 from __future__ import annotations
@@ -48,7 +53,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import augment, data, ehr, metrics, models, prognostic, seqgpt, smalln, syninf, syninf_tabular, vitals
+from . import augment, data, ehr, metrics, models, prognostic, seqgpt, showcase, smalln, syninf, syninf_tabular, vitals
 
 # EHR では数値列のない系列向けの GPT 型モデルも使える
 EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
@@ -284,6 +289,37 @@ def augment_regcheck(args: argparse.Namespace) -> None:
     print(md)
 
 
+def showcase_evaluate(args: argparse.Namespace) -> None:
+    showcase.OUT.mkdir(parents=True, exist_ok=True)
+    by_seed = showcase.evaluate_levels()
+    by_seed.to_csv(showcase.OUT / "results_by_seed.csv", index=False)
+    mean = by_seed.drop(columns="seed").groupby("level", sort=False).mean(numeric_only=True)
+    md = "## 段階ごとの忠実度・関係・有用性・開示リスク（3 シード平均。忠実度は実データ C との比較）\n\n" + mean.T.to_markdown(floatfmt=".3f")
+    (showcase.OUT / "results.md").write_text(md + "\n")
+    print(md)
+
+
+def showcase_release(args: argparse.Namespace) -> None:
+    """見本用データを 1 つの段階で作り、表示・開示リスク・構造・文書化のチェック結果と一緒に書き出す。"""
+    a, b = vitals.read_split("A"), vitals.read_split("B")
+    out = showcase.OUT / f"release_{args.level}"
+    out.mkdir(parents=True, exist_ok=True)
+    gen = showcase.generate(args.level, a, n_seqs=args.n_seqs, seed=args.seed, tail_clip=args.tail_clip)
+    checks = {
+        "disclosure": showcase.disclosure_checks(gen, a, b),
+        "structure": showcase.structure_checks(gen, a),
+    }
+    labelled, meta = showcase.label(gen, args.level)
+    labelled.to_csv(out / "synthetic_vitals.csv.gz", index=False)
+    (out / "metadata.json").write_text(json.dumps({**meta, "checks": checks}, ensure_ascii=False, indent=2, default=float))
+    lines = [f"# 見本用データ（{args.level}）", "", f"- 合成データ。{meta['intended_use']}", f"- 元データ: {meta['source']}",
+             f"- 作り方: {meta['generator']}", "", "## 保つ性質", *[f"- {x}" for x in meta["preserved"]], "",
+             "## 保たない性質", *[f"- {x}" for x in meta["not_preserved"]], "", "## 公開前チェックの結果",
+             *[f"- {k}: {v}" for part in checks.values() for k, v in part.items()]]
+    (out / "README.md").write_text("\n".join(lines) + "\n")
+    print(json.dumps(checks, ensure_ascii=False, indent=2, default=float))
+
+
 def build_site(args: argparse.Namespace) -> None:
     from . import site
 
@@ -383,6 +419,14 @@ def main() -> None:
     p.add_argument("--ns", type=int, nargs="+", required=True)
     p.add_argument("--reps", type=int, required=True)
     p.set_defaults(func=augment_regcheck)
+    p = sub.add_parser("showcase-evaluate", help="見本用データの段階ごとの評価")
+    p.set_defaults(func=showcase_evaluate)
+
+    p = sub.add_parser("showcase-release", help="見本用データを 1 つの段階で作り、公開前チェックと一緒に書き出す")
+    p.add_argument("--level", choices=list(showcase.LEVELS), required=True)
+    p.add_argument("--n-seqs", type=int, default=50, help="見本として出す系列数")
+    p.add_argument("--tail-clip", type=float, default=0.005, help="値を学習データのこの分位点で切り詰める（実在の極値を出さない）")
+    p.set_defaults(func=showcase_release)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
     p.add_argument("--out", type=Path, default=Path("_site"))
