@@ -31,6 +31,10 @@ ICU のバイタル時系列（eICU Demo, issue #15）:
 
     uv run transyn --seed 0 smalln-run var1 --n 20
     uv run transyn smalln-evaluate                 # outputs/smalln/results.md
+
+予測モデルの学習で合成データは実データ何人分か（GHE issue 8）:
+
+    uv run transyn --seed 0 augment-run --ns 20 40 60 100 200 400 --reps 100   # outputs/augment/split0/results.md
 """
 
 from __future__ import annotations
@@ -43,7 +47,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import data, ehr, metrics, models, prognostic, seqgpt, smalln, syninf, syninf_tabular, vitals
+from . import augment, data, ehr, metrics, models, prognostic, seqgpt, smalln, syninf, syninf_tabular, vitals
 
 # EHR では数値列のない系列向けの GPT 型モデルも使える
 EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
@@ -256,6 +260,18 @@ def smalln_evaluate(args: argparse.Namespace) -> None:
     print(md)
 
 
+def augment_run(args: argparse.Namespace) -> None:
+    out = augment.OUT / f"split{args.seed}"
+    out.mkdir(parents=True, exist_ok=True)
+    reps = augment.experiment(args.ns, args.reps, seed=args.seed, par_epochs=args.par_epochs, use_par=not args.no_par)
+    reps.to_csv(out / "reps.csv.gz", index=False)
+    table = augment.summarize(reps)
+    table.to_csv(out / "results.csv", index=False)
+    md = "## AUROC の学習曲線と実データ換算の人数\n\n" + table.to_markdown(index=False, floatfmt=".3f")
+    (out / "results.md").write_text(md + "\n")
+    print(md)
+
+
 def build_site(args: argparse.Namespace) -> None:
     from . import site
 
@@ -343,6 +359,13 @@ def main() -> None:
 
     p = sub.add_parser("smalln-evaluate")
     p.set_defaults(func=smalln_evaluate)
+
+    p = sub.add_parser("augment-run", help="予測モデルの学習でのデータ拡張・合成データの学習曲線")
+    p.add_argument("--ns", type=int, nargs="+", required=True)
+    p.add_argument("--reps", type=int, required=True)
+    p.add_argument("--par-epochs", type=int, default=200)
+    p.add_argument("--no-par", action="store_true", help="外部データの PAR による合成を省く")
+    p.set_defaults(func=augment_run)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
     p.add_argument("--out", type=Path, default=Path("_site"))
