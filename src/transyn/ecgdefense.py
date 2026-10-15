@@ -190,7 +190,11 @@ def _utility(bs, members, nonmembers, kind, kw, seed, classes=("N", "V"), max_be
 
 def experiment(bs: ecglink.BeatSet, seeds=(0, 1, 2, 3, 4), configs=CONFIGS, beats_per_person: int = 24,
                utility: bool = False) -> list[dict]:
-    rows = []
+    """設定ごとの紐づき・それっぽさ（・有用性）。登録された人ごとの紐づきの強さは experiment.per_person に残す。"""
+    import pandas as pd
+
+    rows, per_person = [], []
+    outlier = ecglink.person_outlier_scores(bs.select(part="gen"))
     for seed in seeds:
         mem, non = ecglink.split_persons(bs, seed)
         train, enroll, ref = bs.select(person=mem, part="gen"), bs.select(part="enroll"), bs.select(person=non, part="gen")
@@ -202,5 +206,9 @@ def experiment(bs: ecglink.BeatSet, seeds=(0, 1, 2, 3, 4), configs=CONFIGS, beat
             if utility:
                 r["utility"] = _utility(bs, mem, non, kind, kw, seed)
             rows.append(r)
+            sc = ecglink.linkage_attack.last_scores
+            per_person.append(pd.DataFrame({"person": sc.index, "score": sc.to_numpy(), "member": np.isin(sc.index, mem),
+                                            "outlier": outlier.reindex(sc.index).to_numpy(), "config": name, "seed": seed}))
             print({k: (round(v, 3) if isinstance(v, float) else v) for k, v in r.items()}, flush=True)
+    experiment.per_person = pd.concat(per_person, ignore_index=True)
     return rows

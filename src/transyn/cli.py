@@ -384,6 +384,7 @@ def ecg_defense(args: argparse.Namespace) -> None:
                                  utility=args.dataset == "mitdb")
     df = pd.DataFrame(rows)
     df.to_csv(ecglink.OUT / f"{args.dataset}_defense.csv", index=False)
+    ecgdefense.experiment.per_person.to_csv(ecglink.OUT / f"{args.dataset}_defense_per_person.csv", index=False)
     print(df.drop(columns="seed").groupby("config", sort=False).mean().to_markdown(floatfmt=".3f"))
 
 
