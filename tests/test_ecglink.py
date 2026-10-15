@@ -105,3 +105,11 @@ def test_判別スコアは別の人の実データ同士なら小さい():
     mem, non = ecglink.split_persons(bs, seed=0)
     r = ecglink.realism(bs.select(person=mem, part="gen"), bs.select(person=non, part="gen"))
     assert r["disc"] < 0.25
+
+
+def test_実験は分け方と作り方ごとに紐づきとそれっぽさを返す():
+    bs = toy_beats(n_persons=20, seed=4)
+    rows, per_person = ecglink.experiment(bs, seeds=(0, 1), kinds=("copy", "E1"), beats_per_person=20)
+    assert {(r["seed"], r["kind"]) for r in rows} == {(s, k) for s in (0, 1) for k in ("copy", "E1")}
+    assert all({"auc", "mmd", "disc", "id_acc_real"} <= set(r) for r in rows)
+    assert {"person", "member", "score", "outlier", "kind", "seed"} <= set(per_person.columns)

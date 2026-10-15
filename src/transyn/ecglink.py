@@ -182,6 +182,7 @@ def linkage_attack(syn: BeatSet, enroll: BeatSet, members, model=None) -> dict:
     model = model or _identifier(enroll)
     syn_ids, s = _person_scores(model, syn)
     score = s.max(0)  # 登録された人ごとに、最もその人らしい合成の被験者の確率
+    linkage_attack.last_scores = pd.Series(score, index=model.classes_)
     labels = np.isin(model.classes_, list(members)).astype(int)
     top = model.classes_[s.argmax(1)]
     out = {
@@ -287,3 +288,48 @@ def load_mitdb(root: str | Path, lead: int = 0) -> BeatSet:
             ok = (rr > 0.2) & (rr < 2.5)
             rows.append((b[ok], p[ok], pt[ok], rr[ok], s[ok]))
     return _concat(rows)
+
+
+# ---------------------------------------------------------------- 実験
+
+
+def person_outlier_scores(bs: BeatSet, k: int = 10) -> pd.Series:
+    """被験者ごとの平均の波形（主成分の係数）の、集団で標準化した距離（外れ具合）。"""
+    from sklearn.decomposition import PCA
+
+    coef = PCA(n_components=k, random_state=0).fit_transform(bs.beats)
+    m = pd.DataFrame(coef).groupby(bs.person).mean()
+    z = (m - m.mean()) / m.std()
+    return np.sqrt((z**2).sum(axis=1))
+
+
+def experiment(bs: BeatSet, seeds=(0, 1, 2, 3, 4), kinds=KINDS, beats_per_person: int = 24) -> tuple[list[dict], pd.DataFrame]:
+    """メンバーの分け方（seeds）ごとに、合成の作り方ごとの紐づきとそれっぽさを測る。
+    実データ同士の個人識別の正解率（メンバーの生成用の記録を、登録用の記録で識別）も並べる。"""
+    rows, per_person = [], []
+    outlier = person_outlier_scores(bs.select(part="gen"))
+    for seed in seeds:
+        mem, non = split_persons(bs, seed)
+        train, enroll, ref = bs.select(person=mem, part="gen"), bs.select(part="enroll"), bs.select(person=non, part="gen")
+        model = _identifier(enroll)
+        persons, s = _person_scores(model, train)
+        id_acc = float(np.mean(model.classes_[s.argmax(1)] == persons))
+        for kind in kinds:
+            syn = generate(kind, train, n_persons=len(mem), beats_per_person=beats_per_person, seed=seed)
+            r = {"seed": seed, "kind": kind, "id_acc_real": id_acc, **linkage_attack(syn, enroll, mem, model=model), **realism(syn, ref, seed=seed)}
+            rows.append(r)
+            sc = linkage_attack.last_scores
+            per_person.append(pd.DataFrame({"person": sc.index, "score": sc.to_numpy(), "member": np.isin(sc.index, mem),
+                                            "outlier": outlier.reindex(sc.index).to_numpy(), "kind": kind, "seed": seed}))
+            print({k: (round(v, 3) if isinstance(v, float) else v) for k, v in r.items()}, flush=True)
+    return rows, pd.concat(per_person, ignore_index=True)
+
+
+DATA = {"ecgid": Path("data") / "ecgid" / "raw" / "ecg-id-database-1.0.0", "mitdb": Path("data") / "mitdb" / "raw"}
+
+
+def load(dataset: str) -> BeatSet:
+    """生成用と登録用の両方の記録がある被験者に絞って読む。"""
+    bs = load_ecgid(DATA["ecgid"]) if dataset == "ecgid" else load_mitdb(DATA["mitdb"])
+    c = pd.DataFrame({"p": bs.person, "part": bs.part}).groupby(["p", "part"]).size().unstack(fill_value=0)
+    return bs.select(person=c.index[(c.get("enroll", 0) > 0) & (c.get("gen", 0) > 0)])
