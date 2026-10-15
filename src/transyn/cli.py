@@ -332,8 +332,9 @@ def showcase_release(args: argparse.Namespace) -> None:
 
 def attacks_targeted(args: argparse.Namespace) -> None:
     attacks.OUT.mkdir(parents=True, exist_ok=True)
-    df = attacks.experiment_targeted(args.n, args.reps, seed=args.seed)
-    df.to_csv(attacks.OUT / f"targeted_n{args.n}.csv", index=False)
+    df = attacks.experiment_targeted(args.n, args.reps, seed=args.seed, levels=tuple(args.levels), trim=args.trim)
+    suffix = f"_trim{args.trim:g}" if args.trim else ""
+    df.to_csv(attacks.OUT / f"targeted_n{args.n}{suffix}.csv", index=False)
     print(df.groupby(["level", "kind"])[["auc", "eps_lb"]].agg(["mean", "max"]).to_markdown(floatfmt=".3f"))
 
 
@@ -470,6 +471,8 @@ def main() -> None:
     p = sub.add_parser("attacks-targeted", help="狙い撃ちのメンバーシップ推論（段階ごと、標的10人）")
     p.add_argument("--n", type=int, required=True, help="学習人数")
     p.add_argument("--reps", type=int, required=True, help="標的ごとの試行数（半分は標的を入れる）")
+    p.add_argument("--levels", nargs="+", default=list(attacks.LEVELS))
+    p.add_argument("--trim", type=float, default=None, help="L3・L4 で外れ具合の上位この割合の被験者を除いて生成する")
     p.set_defaults(func=attacks_targeted)
 
     p = sub.add_parser("attacks-population", help="属性推論と部分系列による所属推定（段階ごと）")

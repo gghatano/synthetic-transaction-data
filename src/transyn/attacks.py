@@ -156,7 +156,8 @@ LEVELS = ("L1", "L2", "L3", "L4")
 TAIL_CLIP = 0.005  # showcase-release の既定と同じ
 
 
-def experiment_targeted(n: int, reps: int, k: int = 5, seed: int = 0, levels: tuple[str, ...] = LEVELS) -> pd.DataFrame:
+def experiment_targeted(n: int, reps: int, k: int = 5, seed: int = 0, levels: tuple[str, ...] = LEVELS,
+                        trim: float | None = None) -> pd.DataFrame:
     """A と B を合わせた 1,070 人から平均的な被験者 k 人・外れた被験者 k 人を標的に選び、段階ごとに狙い撃ちを試す。"""
     pool = pd.concat([vitals.read_split("A"), vitals.read_split("B")], ignore_index=True)
     avg, out = choose_targets(pool, k)
@@ -164,8 +165,8 @@ def experiment_targeted(n: int, reps: int, k: int = 5, seed: int = 0, levels: tu
     for level in levels:
         for kind, targets in (("average", avg), ("outlier", out)):
             for t in targets:
-                r = targeted_mia(pool, t, level=level, n=n, reps=reps, seed=seed, tail_clip=TAIL_CLIP)
-                rows.append({**r, "kind": kind})
+                r = targeted_mia(pool, t, level=level, n=n, reps=reps, seed=seed, tail_clip=TAIL_CLIP, trim=trim)
+                rows.append({**r, "kind": kind, "trim": trim or 0.0})
                 print(rows[-1], flush=True)
     return pd.DataFrame(rows)
 

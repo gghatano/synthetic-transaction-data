@@ -102,3 +102,18 @@ def test_公開の範囲の端と同じ極値は再現として数えない(trai
     gen.loc[gen["seq_id"] == 5, "respiration"] = vitals.BOUNDS["respiration"][1]
     other = showcase.disclosure_checks(gen, edge, holdout=edge)
     assert other["extreme_values_reproduced"] == 0
+
+
+def test_外れた被験者を除くと外れ具合の上位が学習から外れる(train):
+    from transyn import attacks
+
+    kept = showcase.trim_outliers(train, 0.1)
+    score = attacks.outlier_scores(train)
+    dropped = set(train["seq_id"].unique()) - set(kept["seq_id"].unique())
+    assert len(dropped) == round(0.1 * train["seq_id"].nunique())
+    assert min(score[list(dropped)]) >= score.drop(list(dropped)).max()
+
+
+def test_外れた被験者を除いた生成でも形はそろう(train):
+    gen = showcase.generate("L3", train, n_seqs=20, seed=0, tail_clip=0.005, trim=0.1)
+    assert gen["seq_id"].nunique() == 20

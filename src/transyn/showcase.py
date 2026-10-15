@@ -95,12 +95,27 @@ def _var_sample(coef: np.ndarray, noise_cov: np.ndarray, n: int, rng: np.random.
     return z
 
 
-def generate(level: str, train: pd.DataFrame, n_seqs: int, seed: int, tail_clip: float | None = None) -> pd.DataFrame:
+def trim_outliers(train: pd.DataFrame, frac: float) -> pd.DataFrame:
+    """被験者ごとの外れ具合（attacks.outlier_scores）が上位 frac の被験者を除く（GHE issue 14）。
+    外れた被験者を生成に使わなければ、その人を狙ったメンバーシップ推論は効かなくなる。"""
+    from . import attacks
+
+    score = attacks.outlier_scores(train)
+    k = int(round(frac * len(score)))
+    drop = score.sort_values().index[len(score) - k :] if k else []
+    return train[~train["seq_id"].isin(drop)].reset_index(drop=True)
+
+
+def generate(level: str, train: pd.DataFrame, n_seqs: int, seed: int, tail_clip: float | None = None,
+             trim: float | None = None) -> pd.DataFrame:
     """段階 level の見本用データを n_seqs 人分作る。
 
+    trim を与えると、L3・L4 で外れ具合が上位 trim の被験者を除いてから統計量を推定する。
     tail_clip を与えると、L1〜L4 の値を学習データの [tail_clip, 1 − tail_clip] 分位点で切り詰める。既定の
     vitals._finalize は学習データの最小・最大で切り詰めるので、実在の被験者の極値がそのまま現れることがある。
     """
+    if trim and level in ("L3", "L4"):
+        train = trim_outliers(train, trim)
     gen = _generate(level, train, n_seqs, seed)
     if tail_clip is not None and level != "L0":
         for v in vitals.VARS:
