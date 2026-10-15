@@ -55,6 +55,7 @@ ICU のバイタル時系列（eICU Demo, issue #15）:
 心電図の合成データのそれっぽさと本人との紐づき（GHE issue 17）:
 
     uv run transyn ecg-linkage --dataset ecgid     # outputs/ecglink/ecgid_rows.csv
+    uv run transyn ecg-defense --dataset ecgid     # 紐づきへの対策（GHE issue 18） → outputs/ecglink/ecgid_defense.csv
 """
 
 from __future__ import annotations
@@ -67,7 +68,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import attacks, augment, data, dpsynth, ecglink, ehr, metrics, models, prognostic, seqgpt, showcase, smalln, syninf, syninf_tabular, vitals
+from . import attacks, augment, data, dpsynth, ecgdefense, ecglink, ehr, metrics, models, prognostic, seqgpt, showcase, smalln, syninf, syninf_tabular, vitals
 
 # EHR では数値列のない系列向けの GPT 型モデルも使える
 EHR_MODELS = {**models.MODELS, "gpt": seqgpt.fit_generate_gpt}
@@ -376,6 +377,19 @@ def ecg_linkage(args: argparse.Namespace) -> None:
     print(df.drop(columns="seed").groupby("kind", sort=False).mean().to_markdown(floatfmt=".3f"))
 
 
+def ecg_defense(args: argparse.Namespace) -> None:
+    ecglink.OUT.mkdir(parents=True, exist_ok=True)
+    bs = ecglink.load(args.dataset)
+    configs = [c for c in ecgdefense.CONFIGS if not args.only or c[0] in args.only]
+    rows = ecgdefense.experiment(bs, seeds=tuple(range(args.seeds)), configs=configs, beats_per_person=args.beats,
+                                 utility=args.dataset == "mitdb")
+    df = pd.DataFrame(rows)
+    tag = "_" + "_".join(args.only) if args.only else ""
+    df.to_csv(ecglink.OUT / f"{args.dataset}_defense{tag}.csv", index=False)
+    ecgdefense.experiment.per_person.to_csv(ecglink.OUT / f"{args.dataset}_defense{tag}_per_person.csv", index=False)
+    print(df.drop(columns="seed").groupby("config", sort=False).mean().to_markdown(floatfmt=".3f"))
+
+
 def build_site(args: argparse.Namespace) -> None:
     from . import site
 
@@ -507,6 +521,13 @@ def main() -> None:
     p.add_argument("--seeds", type=int, default=5, help="メンバーの分け方の数")
     p.add_argument("--beats", type=int, default=24, help="合成の被験者 1 人あたりの拍数")
     p.set_defaults(func=ecg_linkage)
+
+    p = sub.add_parser("ecg-defense", help="心電図の合成データの本人との紐づきへの対策")
+    p.add_argument("--dataset", choices=["ecgid", "mitdb"], required=True)
+    p.add_argument("--seeds", type=int, default=5)
+    p.add_argument("--beats", type=int, default=24)
+    p.add_argument("--only", nargs="+", default=None, help="この名前の設定だけを回す（例: E1-trim-0.2）")
+    p.set_defaults(func=ecg_defense)
 
     p = sub.add_parser("site", help="実験・調査結果のサイトを生成する（既定の出力先は _site/）")
     p.add_argument("--out", type=Path, default=Path("_site"))
