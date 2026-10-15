@@ -76,15 +76,22 @@ def _psd(m: np.ndarray, floor: float = 1e-6) -> np.ndarray:
     return (v * np.clip(w, floor, None)) @ v.T
 
 
+def query_sums(train: pd.DataFrame) -> dict[str, np.ndarray]:
+    """雑音を加える前の 4 つの総和と人数。各被験者の寄与は有界で、1 人の入れ替えによる変化は SENSITIVITY 以下。
+    学習データを読むのはこの関数だけで、以降の処理はこの戻り値に雑音を加えたものだけを使う。"""
+    u, c0, c1 = _per_subject(train)
+    return {"n": len(u), "sum_u": u.sum(0), "sum_uu": (u[:, :, None] * u[:, None, :]).sum(0), "c0": c0.sum(0), "c1": c1.sum(0)}
+
+
 def release(train: pd.DataFrame, epsilon: float, delta: float, rng: np.random.Generator) -> dict[str, np.ndarray]:
     """雑音を加えた統計量（DP で公開してよい量）から、生成に使うパラメータを推定する。以降はこの戻り値だけを使う。"""
-    u, c0, c1 = _per_subject(train)
-    n = len(u)
+    q = query_sums(train)
+    n = q["n"]
     s = noise_scales(epsilon, delta)
-    sum_u = u.sum(0) + rng.normal(0, s["sum_u"], DIM)
-    sum_uu = (u[:, :, None] * u[:, None, :]).sum(0) + rng.normal(0, s["sum_uu"], (DIM, DIM))
-    sc0 = c0.sum(0) + rng.normal(0, s["c0"], (K, K))
-    sc1 = c1.sum(0) + rng.normal(0, s["c1"], (K, K))
+    sum_u = q["sum_u"] + rng.normal(0, s["sum_u"], DIM)
+    sum_uu = q["sum_uu"] + rng.normal(0, s["sum_uu"], (DIM, DIM))
+    sc0 = q["c0"] + rng.normal(0, s["c0"], (K, K))
+    sc1 = q["c1"] + rng.normal(0, s["c1"], (K, K))
     mu = sum_u / n
     cov = _psd(sum_uu / n - np.outer(mu, mu))
     c0m = _psd(sc0 / n)

@@ -27,6 +27,8 @@
 - 見本用データの開示リスクへの対策と保証（差分プライバシー・外れた被験者の除外）: [docs/dp-showcase.md](docs/dp-showcase.md)（GHE issue 14）
 - 心電図の合成データのそれっぽさと本人との紐づき: [docs/ecg-linkage.md](docs/ecg-linkage.md)（GHE issue 17）
 - 心電図の合成データの本人との紐づきへの対策: [docs/ecg-defense.md](docs/ecg-defense.md)（GHE issue 18）
+- 合成データの作り方（全手法の手順と式）: [docs/synthesis-methods.md](docs/synthesis-methods.md)（GHE issue 22）
+- 差分プライバシーの保証の根拠と限界: [docs/dp-guarantee.md](docs/dp-guarantee.md)（GHE issue 22）
 
 ## セットアップ
 

@@ -61,26 +61,33 @@ def _to_beats(coef: np.ndarray) -> np.ndarray:
     return idct(full, norm="ortho", axis=1)
 
 
-def _dp_e2(train: ecglink.BeatSet, n_persons: int, bpp: int, rng: np.random.Generator, epsilon: float, delta: float):
+def dp_sums(train: ecglink.BeatSet) -> dict[str, np.ndarray]:
+    """雑音を加える前の 6 つの総和と人数。各被験者の寄与は有界で、1 人の入れ替えによる変化は DP_SENSITIVITY 以下。
+    学習データを読むのはこの関数だけで、以降の処理はこの戻り値に雑音を加えたものだけを使う。"""
     coef = dct(train.beats, norm="ortho", axis=1)[:, :DCT_K]
     persons = train.persons
-    means = np.array([coef[train.person == p].mean(0) for p in persons])
-    means = _clip_norm(means, C_MEAN)
+    means = _clip_norm(np.array([coef[train.person == p].mean(0) for p in persons]), C_MEAN)
     within = []
     for p, m in zip(persons, means):
         r = _clip_norm(coef[train.person == p] - m, C_RESID)
         within.append(r.T @ r / len(r))
     rr = np.array([np.clip(train.rr[train.person == p].mean(), *RR_BOX) for p in persons])
     rr_sd = np.array([np.clip(train.rr[train.person == p].std(), 0, RR_SD_MAX) for p in persons])
-    n = len(persons)
+    return {"n": len(persons), "sum_mean": means.sum(0), "sum_mean_outer": means.T @ means, "sum_within": np.sum(within, axis=0),
+            "sum_rr": rr.sum(), "sum_rr_sq": (rr**2).sum(), "sum_rr_sd": rr_sd.sum()}
+
+
+def _dp_e2(train: ecglink.BeatSet, n_persons: int, bpp: int, rng: np.random.Generator, epsilon: float, delta: float):
+    q = dp_sums(train)
+    n = q["n"]
     s = dp_noise_scales(epsilon, delta)
     k = DCT_K
-    sum_m = means.sum(0) + rng.normal(0, s["sum_mean"], k)
-    sum_mm = means.T @ means + rng.normal(0, s["sum_mean_outer"], (k, k))
-    sum_w = np.sum(within, axis=0) + rng.normal(0, s["sum_within"], (k, k))
-    sum_rr = rr.sum() + rng.normal(0, s["sum_rr"])
-    sum_rr2 = (rr**2).sum() + rng.normal(0, s["sum_rr_sq"])
-    sum_sd = rr_sd.sum() + rng.normal(0, s["sum_rr_sd"])
+    sum_m = q["sum_mean"] + rng.normal(0, s["sum_mean"], k)
+    sum_mm = q["sum_mean_outer"] + rng.normal(0, s["sum_mean_outer"], (k, k))
+    sum_w = q["sum_within"] + rng.normal(0, s["sum_within"], (k, k))
+    sum_rr = q["sum_rr"] + rng.normal(0, s["sum_rr"])
+    sum_rr2 = q["sum_rr_sq"] + rng.normal(0, s["sum_rr_sq"])
+    sum_sd = q["sum_rr_sd"] + rng.normal(0, s["sum_rr_sd"])
     mu = sum_m / n
     between = dpsynth._psd(sum_mm / n - np.outer(mu, mu))
     w = dpsynth._psd(sum_w / n)
