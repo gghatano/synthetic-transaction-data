@@ -44,3 +44,12 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
