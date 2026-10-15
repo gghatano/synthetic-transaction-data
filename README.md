@@ -21,6 +21,8 @@
 - 合成データで水増しして検定すると何が起きるか: [docs/synthetic-inference.md](docs/synthetic-inference.md)（GHE issue 1）
 - 外部データの予後予測を共変量にして必要な被験者数を減らす: [docs/prognostic-covariate.md](docs/prognostic-covariate.md)（GHE issue 2）
 - 学習人数が少ないときの生成モデル: [docs/small-n-generators.md](docs/small-n-generators.md)（GHE issue 3）
+- 予測モデルの学習で合成データは実データ何人分になるか: [docs/augmentation.md](docs/augmentation.md)（GHE issue 8）
+- 見本用データの忠実度の段階と公開前チェック: [docs/showcase-levels.md](docs/showcase-levels.md)（GHE issue 9）
 
 ## セットアップ
 
@@ -69,6 +71,9 @@ uv run transyn syninf-run var1 --n 100 --m 100 --reps 500 --epochs 0   # 合成�
 uv run transyn prognostic-run --ns 20 40 60 100 200 --reps 1000        # 予後予測の共変量 → outputs/prognostic/split0/
 uv run transyn --seed 0 smalln-run var1 --n 20                # 学習人数を絞った生成 → outputs/smalln/
 uv run transyn smalln-evaluate
+uv run transyn --seed 0 augment-run --ns 20 40 60 100 200 400 --reps 100   # 予測モデルの学習曲線 → outputs/augment/split0/
+uv run transyn showcase-evaluate                                          # 見本用データの段階 → outputs/showcase/
+uv run transyn showcase-release --level L3                                # 見本用データとチェック結果 → outputs/showcase/release_L3/
 ```
 
 テストは`uv run pytest`で実行する。
