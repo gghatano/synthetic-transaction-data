@@ -76,7 +76,7 @@ issue #10の調査パート。トランザクション合成（#1〜#6）の知�
 | データ | 規模 | 内容 | 入手条件 |
 |---|---|---|---|
 | MIMIC-IV Clinical Database Demo v2.2 [D1] | 100人 | MIMIC-IVの全26テーブル（診断・処方・検査・ICU等）。自由記述は除く | 誰でも可。ODbL v1.0。15 MB |
-| eICU Collaborative Research Database Demo v2.0.1 [D2] | 約2,500 ICU滞在、20病院 | 診断（時刻付きの問題リスト）・治療・投薬・検査・バイタル等 | 誰でも可。ODbL v1.0。130 MB |
+| eICU Collaborative Research Database Demo v2.0.1 [D2] | 2,520 ICU滞在、186病院 | 診断（時刻付きの問題リスト）・治療・投薬・検査・バイタル等 | 誰でも可。ODbL v1.0。130 MB |
 | MIMIC-IV / eICU本体 | 数万〜20万人規模 | 同上の全体 | PhysioNetでの資格認定（研修の受講と利用申請）。本人の手続きが必要 |
 
 ODbLはデータベースの派生物を公開する場合に同じライセンスでの公開（share-alike）と出典表示を求める。デモデータから作った合成データを共有する場合の扱いは、利用条件を確認する必要がある。

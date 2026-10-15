@@ -26,7 +26,7 @@ eICU Demoで4手法を比べた。データ共有が目的なので、忠実度�
 
 ### データ
 
-- eICU Collaborative Research Database Demo v2.0.1（PhysioNet、ODbL v1.0）。20病院、約2,500 ICU滞在
+- eICU Collaborative Research Database Demo v2.0.1（PhysioNet、ODbL v1.0）。2,520 ICU滞在、186病院（`hospital.csv`）。下記の前処理後の2,127滞在も186病院にまたがる
 - 各ICU滞在で、入室から48時間以内の診断・治療・投薬を時刻（入室からの分）順に並べた系列にした
   - 診断・治療: `diagnosisstring` / `treatmentstring`の先頭2階層（例: `dx:pulmonary|respiratory failure`）
   - 投薬: HICL番号（成分の識別子）。薬剤名は4割が欠損で表記ゆれも大きいため使わない。中止された指示は除外
